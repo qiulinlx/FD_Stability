@@ -55,6 +55,43 @@ def Functional_Richness(traits: np.ndarray) -> float:
     return FRic, hull
 
 
+def Frich_Intersect(hull1, hull2, n_samples: int = 100000) -> float:
+    """
+    GPT GENERATED REQUIRES MORE VERIFICATION
+    Compute approximate Functional Volume Intersection (FRic_intersect) 
+    between two communities using convex hulls.
+
+    Args:
+        hull1, hull2: scipy.spatial.ConvexHull objects for each community
+        n_samples: number of Monte Carlo samples for approximation
+
+    Returns:
+        FRic_intersect: float between 0 and 1
+    """
+    # Combine points to get bounding box
+    all_points = np.vstack([hull1.points, hull2.points])
+    mins = all_points.min(axis=0)
+    maxs = all_points.max(axis=0)
+
+    # Generate random points in bounding box
+    samples = np.random.uniform(mins, maxs, size=(n_samples, hull1.points.shape[1]))
+
+    # Helper: check if points are inside a convex hull
+    def in_hull(points, hull):
+        delaunay = Delaunay(hull.points[hull.vertices])
+        return delaunay.find_simplex(points) >= 0
+
+    inside1 = in_hull(samples, hull1)
+    inside2 = in_hull(samples, hull2)
+
+    # Intersection fraction
+    intersection_fraction = np.sum(inside1 & inside2) / n_samples
+    union_fraction = np.sum(inside1 | inside2) / n_samples
+
+    FRic_intersect = intersection_fraction / union_fraction if union_fraction > 0 else 0
+    return FRic_intersect
+
+
 def Functional_Evenness(trait_array: np.ndarray, rel_ab: list) -> float:
     """
     Compute Functional Evenness (FEve) using the MST approach (Villéger et al., 2008).
@@ -119,7 +156,7 @@ def Functional_Divergence(trait_array: np.ndarray, rel_ab: list) -> float:
     return FDiv
 
 
-def functional_dispersion(traits: np.ndarray, abundances: list, weighted: bool = True) -> float:
+def Functional_Dispersion(traits: np.ndarray, abundances: list, weighted: bool = True) -> float:
     """
     Compute Functional Dispersion (FDis) for a community.
 
