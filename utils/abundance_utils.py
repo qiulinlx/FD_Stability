@@ -16,6 +16,7 @@ def Relative_Abundance(df: pd.DataFrame, abundances_col: str) -> pd.DataFrame:
     """
     total = df[abundances_col].sum()
     df["Relative_Abundances"] = df[abundances_col] / total * 100
+    
     return df
 
 def normalise_abundance(abundances: list) -> np.ndarray:

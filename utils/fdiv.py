@@ -7,7 +7,7 @@ from scipy.spatial.distance import pdist, squareform
 from sklearn.preprocessing import StandardScaler
 
 import networkx as nx
-from abundance_utils import Relative_Abundance, normalise_abundance
+from utils.abundance_utils import Relative_Abundance, normalise_abundance
 
 
 from scipy.spatial import Delaunay
@@ -48,7 +48,7 @@ def Functional_Richness(traits: np.ndarray) -> float:
     n_species, n_traits = traits_scaled.shape
     if n_species <= n_traits:
         print("Not enough species to form a convex hull.")
-        return None
+        return None, None
 
     hull = ConvexHull(traits_scaled)
     FRic = hull.volume
@@ -186,7 +186,7 @@ def Functional_Dispersion(traits: np.ndarray, abundances: list, weighted: bool =
     # Compute FDis
     FDis = np.sum(distances * abundances) if weighted else np.mean(distances)
 
-
+    return FDis
 
 
 def Raos_Q(trait_array: np.ndarray, rel_ab: list) -> float:
