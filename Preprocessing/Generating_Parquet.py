@@ -12,6 +12,7 @@ import re
 import warnings
 
 import pandas as pd
+import numpy as np
 
 # Suppress SettingWithCopyWarning from pandas
 warnings.simplefilter(action='ignore', category=pd.errors.SettingWithCopyWarning)
@@ -33,9 +34,13 @@ def truncate_after_4_underscores(s: str) -> str:
 
 df = pd.read_csv("data/FIA_ecological_traits.csv")
 
+
 df["PID"] = df["PID"].apply(truncate_after_4_underscores)
 
 df.drop(columns=['LON', 'LAT', 'accepted_bin'], inplace=True)
+
+cols_to_log = df.columns.difference(['PID', 'species'])
+df[cols_to_log] = df[cols_to_log].apply(np.log)
 
 groups = {name: g for name, g in df.groupby("PID")}
 

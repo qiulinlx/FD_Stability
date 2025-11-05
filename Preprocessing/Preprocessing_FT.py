@@ -13,9 +13,9 @@ def load_arrow(filename: str) -> pd.DataFrame:
         table= table.to_pandas()
     return table
 
-table = load_arrow("FIA_eda/data/FIA_CA.arrow")
+table = load_arrow("data/FIA_CA.arrow")
 
-ft_df= pd.read_csv("FIA_eda/data/traitMatrix.csv")
+ft_df= pd.read_csv("data/traitMatrix.csv")
 ft_df.columns.values[0] = "species"
 
 '''Dropping unneeded columns that have null or nonunique values'''
@@ -85,5 +85,4 @@ df = df.drop(columns=regulatory_to_drop)
 eco_df = df[eco_vars]
 
 merged_df = pd.merge(eco_df, ft_df, left_on="accepted_bin", right_on="species")
-
 merged_df.to_csv("FIA_ecological_traits.csv", index=False)

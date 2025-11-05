@@ -18,7 +18,7 @@ import os
 import pandas as pd
 
 # Folder containing all Parquet files
-folder = "FD_Playground/data/county_data"
+folder = "data/county_data"
 
 pid=[]
 F_Eve=[]
@@ -79,4 +79,4 @@ FD_df = pd.DataFrame({
     'Functional_Dispersion': F_Dis
 })
 
-FD_df.to_csv("FD_Playground/FD_Metrics_California.csv", index=False)
+FD_df.to_csv("FD_Metrics_California.csv", index=False)
