@@ -1,8 +1,19 @@
 # Functional Diversity Toolkit
 
+
+
 A collection of Python functions and tools for exploring ecological and trait-based data. 
 Includes utilities for calculating functional diversity metrics (FRic, FEve, FDiv, FDis, RaoQ) 
 and performing data preprocessing for further analysis.
+
+## Tracking to do 
+
+* Generate quick report of finding to show Dan. Can literally just be dataflow and bad Random Forest
+* Fix up the data flow chart
+* Pull CHELSA data for California
+* Look at why 7000 points became 1600
+* Refactor code and clean it. truncate function being used multiple times 
+* Start adding some sort of tracking to look at model performance (NOT urgent)
 
 ## Table of Contents
 - [Installation](#installation)
@@ -56,3 +67,4 @@ Contributions are welcome! Please open an issue or submit a pull request.
 ## License
 
 MIT License
+
