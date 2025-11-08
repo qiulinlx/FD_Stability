@@ -1,6 +1,6 @@
 import pandas as pd
 import geopandas as gpd
-
+import json
 """
 
 This script loads two CSV files containing latitude and longitude points:
@@ -13,15 +13,28 @@ and saves the merged result as a CSV with the PID, EVI, and date.
 
 """
 
-CSV_A = "data/PID_location.csv"                 # Points CSV with 'PID', 'lat', 'lon'
-CSV_B = "data/EVI_2018_2023_cleaned.csv"       # EVI CSV with 'lat', 'lon', 'EVI', 'date'
+def parse_geo_string(geo_str):
+    # Fix doubled quotes
+    fixed = geo_str.replace('""', '"').strip('"')
+    
+    # Convert to dict
+    d = json.loads(fixed)
+
+    # Extract lon / lat
+    lon, lat = d["coordinates"]
+    return lon, lat
+
+
 BUFFER_DIST = 500                               # Buffer radius in meters
-OUTPUT_CSV = "data/merged_EVI_PID.csv"
-# ================================
+
 
 # 1) Load CSVs
-dfA = pd.read_csv(CSV_A)
-dfB = pd.read_csv(CSV_B)
+dfA = pd.read_csv("data/lookup/PID_location.csv" )
+dfB = pd.read_csv("data/raw/Summer_EVI_MEanStd_2005_2022.csv")
+
+dfB["lon"], dfB["lat"] = zip(*dfB[".geo"].map(parse_geo_string))
+
+dfB.drop(columns=[".geo", 'system:index'], inplace=True)
 
 # 2) Convert to GeoDataFrames
 gdfA = gpd.GeoDataFrame(
@@ -52,10 +65,15 @@ joined = gpd.sjoin(
     predicate="intersects"
 )
 
+print(joined.head(30))
+
+joined = joined.rename(columns={"PID_left": "PID", "lat_left": "lat", "lon_left": "lon"})
+print(joined.columns)
+
 # 6) Select relevant columns
-merged_df = joined[["PID", "EVI", "date"]].copy()
+merged_df = joined[["PID", 'EVI_mean', 'EVI_stdDev', "year"]].copy()
 
 # 7) Save merged CSV
-merged_df.to_csv(OUTPUT_CSV, index=False)
+merged_df.to_csv("data/merged_EVI_PID1.csv", index=False)
 
-print(f"✅ Saved merged CSV: {OUTPUT_CSV}")
+print("Saved merged CSV")
