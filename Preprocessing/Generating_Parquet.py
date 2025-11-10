@@ -1,3 +1,14 @@
+
+import os
+import re
+import warnings
+
+import pandas as pd
+import numpy as np
+
+from utils.utils import truncate_after_n_underscores
+warnings.simplefilter(action='ignore', category=pd.errors.SettingWithCopyWarning)
+
 """
 Script to process FIA ecological trait data:
 1. Reads CSV of traits.
@@ -7,35 +18,10 @@ Script to process FIA ecological trait data:
 5. Writes each sub-dataset to a Parquet file with safe filenames.
 """
 
-import os
-import re
-import warnings
-
-import pandas as pd
-import numpy as np
-
-# Suppress SettingWithCopyWarning from pandas
-warnings.simplefilter(action='ignore', category=pd.errors.SettingWithCopyWarning)
-
-def truncate_after_4_underscores(s: str) -> str:
-    """
-    Truncate a string after the fourth underscore.
-    Using this to standardize plot IDs (PIDs).
-
-    Args:
-        s (str): Input string.
-
-    Returns:
-        str: String containing only the first four underscore-separated segments.
-    """
-    parts = s.split("_")
-    return "_".join(parts[:4])
-
-
 df = pd.read_csv("data/FIA_ecological_traits.csv")
 
 
-df["PID"] = df["PID"].apply(truncate_after_4_underscores)
+df["PID"] = df["PID"].apply(truncate_after_n_underscores)
 
 df.drop(columns=['LON', 'LAT', 'accepted_bin'], inplace=True)
 

@@ -1,21 +1,13 @@
+import os
 import numpy as np
 import pandas as pd
 import utils.fdiv as fd
+
 from utils.abundance_utils import Relative_Abundance
-
-import networkx as nx
-from scipy.spatial.distance import pdist, squareform
-
-import matplotlib.pyplot as plt
-
-import networkx as nx
 
 import warnings
 warnings.simplefilter(action='ignore', category=pd.errors.SettingWithCopyWarning)
 
-
-import os
-import pandas as pd
 
 # Folder containing all Parquet files
 folder = "data/county_data"

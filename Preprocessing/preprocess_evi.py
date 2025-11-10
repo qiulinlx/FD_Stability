@@ -1,6 +1,9 @@
 import pandas as pd
 import geopandas as gpd
 import json
+
+from utils.utils import parse_geo_string
+
 """
 
 This script loads two CSV files containing latitude and longitude points:
@@ -12,21 +15,6 @@ performs a spatial join to retain only overlapping points between the two datase
 and saves the merged result as a CSV with the PID, EVI, and date.
 
 """
-
-def parse_geo_string(geo_str):
-    # Fix doubled quotes
-    fixed = geo_str.replace('""', '"').strip('"')
-    
-    # Convert to dict
-    d = json.loads(fixed)
-
-    # Extract lon / lat
-    lon, lat = d["coordinates"]
-    return lon, lat
-
-
-BUFFER_DIST = 500                               # Buffer radius in meters
-
 
 # 1) Load CSVs
 dfA = pd.read_csv("data/lookup/PID_location.csv" )
@@ -53,7 +41,9 @@ gdfB = gpd.GeoDataFrame(
 gdfA = gdfA.to_crs("EPSG:3857")
 gdfB = gdfB.to_crs("EPSG:3857")
 
-# 4) Create buffers around points
+
+BUFFER_DIST = 500                            
+
 gdfA["buffer"] = gdfA.geometry.buffer(BUFFER_DIST)
 gdfB["buffer"] = gdfB.geometry.buffer(BUFFER_DIST)
 
