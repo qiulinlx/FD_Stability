@@ -18,8 +18,7 @@ Script to process FIA ecological trait data:
 5. Writes each sub-dataset to a Parquet file with safe filenames.
 """
 
-df = pd.read_csv("data/FIA_ecological_traits.csv")
-
+df = pd.read_csv("data/processed/CA_functional_traits.csv")
 
 df["PID"] = df["PID"].apply(truncate_after_n_underscores)
 

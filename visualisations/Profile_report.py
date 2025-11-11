@@ -11,10 +11,10 @@ y["PID"] = y["PID"].apply(truncate_after_n_underscores)
 
 
 df = pd.merge(x, y, left_on="PID", right_on="PID")
-df.drop(columns=['PID','Functional_Richness', 'n_years', 'slope', 'intercept'], inplace=True)
+df.drop(columns=['PID', 'n_years', 'slope', 'intercept'], inplace=True)
 df.rename(columns={'residual_sd': 'Stability'}, inplace=True)
 df.fillna(0, inplace=True)
 
 profile= ProfileReport(df, title="Linking FD Traits to Stability")
 
-profile.to_file("evi_stability_profile.html")
+profile.to_file("evi_stability_profile1.html")
