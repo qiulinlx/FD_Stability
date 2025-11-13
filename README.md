@@ -10,6 +10,7 @@ and performing data preprocessing for further analysis.
 
 * Look at why 7000 points became 1600
 * Verify FD metrics
+* Redo FD pipeline
 * Look into how to compute EVI and stability 
 * Refactor code and clean it. truncate function being used multiple times 
 * Start adding some sort of tracking to look at model performance (NOT urgent)
