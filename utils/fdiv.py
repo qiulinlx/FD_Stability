@@ -29,7 +29,7 @@ Functional dispersion (FDis)
 Rao's Quadratic Entropy (RaoQ)
 
 """
-def Functional_Richness(sp_loc:pd.DataFrame, traits: np.ndarray) -> pd.DataFrame():
+def Functional_Richness(sp_loc:pd.DataFrame, traits: np.ndarray) -> pd.DataFrame:
     """
     Compute Functional Richness (FRic) as the volume of the convex hull
     in standardized trait space.
@@ -187,7 +187,7 @@ def Functional_Evenness(sp_loc: pd.DataFrame, traits: pd.DataFrame, Relative_abu
     return FEve_df
 
 
-def Functional_Divergence(sp_loc:pd.DataFrame, trait_array: np.ndarray) -> float:
+def Functional_Divergence(sp_loc:pd.DataFrame, traits: pd.DataFrame) -> pd.DataFrame:
     """
     Compute Functional Divergence (FDiv).
 
@@ -220,6 +220,7 @@ def Functional_Divergence(sp_loc:pd.DataFrame, trait_array: np.ndarray) -> float
         ab = ab[[c for c in species if c in ab.columns]]
         ab = ab.div(ab.sum(axis=1), axis=0)
         ab=np.array(ab)[0]
+        
 
         # Subset traits for present species
         trait_array = traits[traits["Species"].isin(species)].copy()
@@ -237,11 +238,10 @@ def Functional_Divergence(sp_loc:pd.DataFrame, trait_array: np.ndarray) -> float
         abs_delta_d = np.sum(ab * np.abs(distances - dG))
 
         FDiv = (delta_d + dG) / (abs_delta_d + dG)
-        print(FDiv)
         FDivergence.append(FDiv)
         pID.append(pid)
 
-    FDiv_df = pd.DataFrame({"PID": pID, "Functional_Evenness": FDivergence})
+    FDiv_df = pd.DataFrame({"PID": pID, "Functional_Divergences": FDivergence})
     
     return FDiv_df
 

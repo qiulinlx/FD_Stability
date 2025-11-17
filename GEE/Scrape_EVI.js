@@ -1,7 +1,7 @@
 //--------------------------------------
 // LOAD POINT TABLE
 //--------------------------------------
-var pts = table; // TABLE IS UPLOADED PID_LOCATION.CSV FILE ASSET
+var pts = table; //Table id PID location csv file asset
 
 // MODIS MOD13Q1 (EVI)
 var modis = ee.ImageCollection("MODIS/006/MOD13Q1");
@@ -9,7 +9,7 @@ var modis = ee.ImageCollection("MODIS/006/MOD13Q1");
 //--------------------------------------
 // YEARS
 //--------------------------------------
-var years = ee.List.sequence(2013, 2022);
+var years = ee.List.sequence(2005, 2022);
 
 //--------------------------------------
 // SUMMER MEAN PER YEAR
@@ -29,9 +29,13 @@ var summerByYear = years.map(function(y) {
 
   var summerMean = summer.mean()
     .set("year", y);
+  
+  var summerVar = summer.std().
+    .set("year", y);
 
   return summerMean;
 });
+
 
 var summerCollection = ee.ImageCollection(summerByYear);
 
@@ -53,6 +57,6 @@ var sampled = summerCollection.map(function(img) {
 //--------------------------------------
 Export.table.toDrive({
   collection: sampled,
-  description: "Summer_EVI_2013_2022",
+  description: "Summer_EVI_2005_2022",
   fileFormat: "CSV"
 });

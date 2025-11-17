@@ -19,25 +19,29 @@ for pid, sub in df.groupby("PID"):
     if len(sub) < 3:
         # Not enough years to fit regression
         continue
-
+    
+    pearson =sub['EVI_mean'].autocorr()  
+    
     # --- Fit EVI ~ Year ---
     X = sm.add_constant(sub["year"])    # adds intercept
     y = sub["EVI"]
-
+    print(pearson)
     model = sm.OLS(y, X).fit()
 
     # Residuals
     residuals = model.resid
     residual_sd = residuals.std()
 
-    # Store
-    records.append({
-        "PID": pid,
-        "n_years": len(sub),
-        "slope": model.params["year"],
-        "intercept": model.params["const"],
-        "residual_sd": residual_sd
-    })
 
-records= pd.DataFrame(records)
-records.to_csv('data/stability_metrics.csv', index=False)
+
+#     # Store
+#     records.append({
+#         "PID": pid,
+#         "n_years": len(sub),
+#         "slope": model.params["year"],
+#         "intercept": model.params["const"],
+#         "residual_sd": residual_sd
+#     })
+
+# records= pd.DataFrame(records)
+# records.to_csv('data/stability_metrics.csv', index=False)
