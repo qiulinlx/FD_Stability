@@ -53,12 +53,14 @@ joined = gpd.sjoin(
     predicate="intersects"
 )
 
-joined = joined.rename(columns={"PID_left": "PID", "lat_left": "lat", "lon_left": "lon"})
+joined.columns = joined.columns.str.strip()
+joined['date'] = pd.to_datetime(joined['date'])
 
-# Select relevant columns
-merged_df = joined[["PID", 'EVI_mean', 'EVI_stdDev', "year"]].copy()
+df_wide = joined.pivot_table(
+    index='PID',
+    columns='date',
+    values='EVI',
+    aggfunc='mean'
+)
 
-# Save merged CSV
-merged_df.to_csv("data/merged_EVI_PID.csv", index=False)
-
-print("Saved merged CSV")
+df_wide.to_csv("data/EVI_PID.csv", index=True)
