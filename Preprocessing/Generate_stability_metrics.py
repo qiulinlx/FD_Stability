@@ -1,47 +1,41 @@
-import statsmodels.api as sm
+import numpy as np
 import pandas as pd
+import numpy as np
+from scipy.stats import kurtosis
 
-df = pd.read_csv('data/merged_EVI_PID.csv')
-
-df["year"] = pd.to_datetime(df["year"].astype(int), format="%Y")
-df["year"] = df["year"].dt.year
-
-# Ensure correct types
-df["year"] = df["year"].astype(float)
-df["EVI"] = df["EVI_mean"].astype(float)
-
-# Container for results
-records = []
-
-# Process each plot
-for pid, sub in df.groupby("PID"):
-
-    if len(sub) < 3:
-        # Not enough years to fit regression
-        continue
-    
-    pearson =sub['EVI_mean'].autocorr()  
-    
-    # --- Fit EVI ~ Year ---
-    X = sm.add_constant(sub["year"])    # adds intercept
-    y = sub["EVI"]
-    print(pearson)
-    model = sm.OLS(y, X).fit()
-
-    # Residuals
-    residuals = model.resid
-    residual_sd = residuals.std()
+import matplotlib.pyplot as plt
 
 
+df=pd.read_csv('data/EVI_PID.csv')
 
-#     # Store
-#     records.append({
-#         "PID": pid,
-#         "n_years": len(sub),
-#         "slope": model.params["year"],
-#         "intercept": model.params["const"],
-#         "residual_sd": residual_sd
-#     })
+pid=pd.read_csv('data/lookup/PID_location.csv')
 
-# records= pd.DataFrame(records)
-# records.to_csv('data/stability_metrics.csv', index=False)
+df1=df.copy()
+df1.index=df1['PID']
+df1=df1.drop(columns=['PID'])
+df1['row_mean'] = df1.mean(axis=1, skipna=True)
+df1=df1[["row_mean"]]
+
+s_df=df1.merge()
+
+# Temporal EVI Metrics
+
+pid = df['PID'].sample(1).iloc[0]
+sub = df[df['PID'] == pid]
+
+sub = sub.dropna(axis=1)
+sub.drop(columns=['PID'], inplace=True)
+
+dates=sub.columns.tolist()
+evi=np.array(sub)
+sub1=pd.Series(evi.flatten(), index=pd.to_datetime(dates))
+pearson =sub1.autocorr()  
+
+k = kurtosis(sub1, fisher=True, bias=False)
+print(k)
+
+
+plt.figure(figsize=(20,5))
+plt.plot(dates, evi.flatten())
+plt.title(f"EVI Time Series for PID: {pid} with AR(1)={pearson}", fontsize=16)
+plt.show()
