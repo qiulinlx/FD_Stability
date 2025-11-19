@@ -351,7 +351,7 @@ def Raos_Q(sp_loc:pd.DataFrame, traits: np.ndarray) -> pd.DataFrame():
         weight_matrix = np.outer(ab, ab)
 
         # Optional: set diagonal to zero
-        np.fill_diagonal(weight_matrix, 0)
+        # np.fill_diagonal(weight_matrix, 0)
 
         # Rao's Q = sum(p_i * p_j * d_ij)
         RaoQ = np.sum(weight_matrix * dist_matrix)
