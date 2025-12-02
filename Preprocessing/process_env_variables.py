@@ -20,11 +20,11 @@ def visualise_groups(linkage_matrix, df):
     plt.title('Feature Clustering Dendrogram', fontsize=16)
     plt.show()
 
-def select_representative_variable(linkage_matrix, corr_matrix, threshold=0.5):
+def select_representative_variable(linkage_matrix, corr_matrix, df1, threshold=0.5):
     groups = fcluster(linkage_matrix, t=threshold, criterion='distance')
 
     # Map features to their groups
-    feature_groups = pd.DataFrame({'feature': joined.columns, 'group': groups})
+    feature_groups = pd.DataFrame({'feature': df1.columns, 'group': groups})
     print(feature_groups)
 
     # Compute absolute correlation matrix
@@ -66,13 +66,18 @@ gdf2 = gpd.GeoDataFrame(
 
 joined = gpd.sjoin_nearest(gdf1, gdf2, how="left", distance_col="dist_m")
 
+df1= joined.copy()
+joined.drop(columns=['lat_left', 'lat_left', 'geometry', 'lat_right', 'lon_right', 'dist_m', 'EarthEnvTexture_CoOfVar_EVI', 'PID'], inplace=True)
+
+
 # Calculating correlations between environmental variables
-corr_matrix = joined.corr()
+corr_matrix =joined.corr()
 distance_matrix = 1 - np.abs(corr_matrix) # Distance matrix
 linkage_matrix = linkage(distance_matrix, method='average')
 
-r_features=select_representative_variable(linkage_matrix, corr_matrix)
+r_features=select_representative_variable(linkage_matrix, corr_matrix, joined)
 
-df = joined[r_features]
+df = df1[r_features]
 
-df.to_csv('CA_env_PID_matched.csv', index=False)
+df1[['PID','CHELSA_BIO_Annual_Mean_Temperature', 'CHELSA_BIO_Annual_Precipitation']].to_csv('data/processed/CA_temp_precip.csv', index=False)
+# df.to_csv('CA_env_temp_precip.csv', index=False)
