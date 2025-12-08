@@ -6,3 +6,4 @@
 *.html
 *.env
 /R_Code
+.Rproj.user
