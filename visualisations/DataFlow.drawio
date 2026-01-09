@@ -66,7 +66,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="qYlMEeSUYns1npq-zC5o-18" parent="1" style="whiteSpace=wrap;html=1;rounded=0;" value="Stability Metrics" vertex="1">
+        <mxCell id="qYlMEeSUYns1npq-zC5o-18" parent="1" style="whiteSpace=wrap;html=1;rounded=0;" value="NPP Metrics" vertex="1">
           <mxGeometry height="60" width="120" x="800" y="480" as="geometry" />
         </mxCell>
         <mxCell id="qYlMEeSUYns1npq-zC5o-27" edge="1" parent="1" source="qYlMEeSUYns1npq-zC5o-20" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="qYlMEeSUYns1npq-zC5o-26" value="">
