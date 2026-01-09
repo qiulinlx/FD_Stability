@@ -1,9 +1,47 @@
 <mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:146.0) Gecko/20100101 Firefox/146.0" version="29.3.0">
   <diagram name="Page-1" id="sNyvHo-_TIugQd_JywTU">
-    <mxGraphModel>
+    <mxGraphModel dx="2253" dy="802" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
+        <mxCell id="aNyFFq4fpp3noK_v6CT9-1" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="&lt;div&gt;Functional Diversity Data&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="120" x="120" y="310" as="geometry" />
+        </mxCell>
+        <mxCell id="aNyFFq4fpp3noK_v6CT9-2" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="&lt;div&gt;Net Primary Productivity Data&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="120" x="120" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="aNyFFq4fpp3noK_v6CT9-3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="&lt;div&gt;Environmental&amp;nbsp;&lt;/div&gt;&lt;div&gt;Data&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="120" x="120" y="170" as="geometry" />
+        </mxCell>
+        <mxCell id="aNyFFq4fpp3noK_v6CT9-10" edge="1" parent="1" source="aNyFFq4fpp3noK_v6CT9-5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="aNyFFq4fpp3noK_v6CT9-1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="aNyFFq4fpp3noK_v6CT9-5" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="&lt;div&gt;Field Measurement Data&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="120" x="-80" y="310" as="geometry" />
+        </mxCell>
+        <mxCell id="aNyFFq4fpp3noK_v6CT9-8" edge="1" parent="1" source="aNyFFq4fpp3noK_v6CT9-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="aNyFFq4fpp3noK_v6CT9-2">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="-20" y="70" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="aNyFFq4fpp3noK_v6CT9-9" edge="1" parent="1" source="aNyFFq4fpp3noK_v6CT9-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="aNyFFq4fpp3noK_v6CT9-3">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="-20" y="200" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="aNyFFq4fpp3noK_v6CT9-6" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="&lt;div&gt;Remote Sensing&amp;nbsp;&lt;/div&gt;&lt;div&gt;Data&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="120" x="-80" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="aNyFFq4fpp3noK_v6CT9-11" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="&lt;div&gt;Input Features&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="120" x="300" y="270" as="geometry" />
+        </mxCell>
+        <mxCell id="aNyFFq4fpp3noK_v6CT9-13" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="&lt;div&gt;Target&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="120" x="310" y="40" as="geometry" />
+        </mxCell>
       </root>
     </mxGraphModel>
   </diagram>
