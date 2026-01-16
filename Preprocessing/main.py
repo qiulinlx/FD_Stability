@@ -6,6 +6,7 @@ import pyarrow.ipc as ipc
 import os 
 import numpy as np
 import warnings
+
 warnings.simplefilter(action='ignore', category=pd.errors.SettingWithCopyWarning)
 
 os.chdir("/Users/qstuff/Desktop/Dummy_Data/FD_Playground")
@@ -105,7 +106,7 @@ if __name__ == "__main__":
 
     PID_df[['lat', 'lon']] = PID_df[['lat', 'lon']].round(3)
     rs_df[['lat', 'lon']]=rs_df[['lat', 'lon']].round(3)
-    
+
     rs_df = rs_df.merge(PID_df, on=['lat', 'lon'], how='left')
     rs_df.dropna(inplace=True)
 
