@@ -9,15 +9,6 @@ import warnings
 
 warnings.simplefilter(action='ignore', category=pd.errors.SettingWithCopyWarning)
 
-os.chdir("/Users/qstuff/Desktop/Dummy_Data/FD_Playground")
-
-def load_arrow(filename: str) -> pd.DataFrame:
-    with pa.memory_map(filename, "r") as source:
-        reader = ipc.RecordBatchFileReader(source)
-        table = reader.read_all()
-        table= table.to_pandas()
-    return table
-
 if __name__ == "__main__":
 
     variables= ["lat", "lon",
@@ -33,29 +24,25 @@ if __name__ == "__main__":
     "EarthEnvTopoMed_Northness"
     ]
 
-    env_df= pd.read_csv('data/raw/Composite.csv')
-    PID_df=pd.read_csv('data/lookup/PID_location.csv')
-    table = load_arrow("data/raw/FIA_CA.arrow")
+    env_df= pd.read_csv('data/Composite.csv')
+    PID_df=pd.read_csv('data/lookup/PID_location_all.csv')
+    table = pd.read_csv('data/processed/species_abundance_all.csv')
     traits=pd.read_csv("data/lookup/traitMatrix.csv")
-    tif_path = "/Users/qstuff/Desktop/Dummy_Data/FD_Playground/data/Tiff/MODIS_CA_2015.tif"  
+    # tif_path = "data/Tiff/MODIS_CA_2015.tif"  
 
 
     # Preparing Composite Data ------------------------------------------------
 
-    ca_env_df = env_df[
-        (env_df['lat'] >= 32.5) & (env_df['lat'] <= 42) &
-        (env_df['lon'] >= -124.5) & (env_df['lon'] <= -114)
-    ]     # There exists a better way to do this 
+    env_df = env_df[variables]
 
-    ca_env_df = ca_env_df[variables]
-
-    ca_env_df[['lat', 'lon']] = ca_env_df[['lat', 'lon']].round(4)
+    env_df[['lat', 'lon']] = env_df[['lat', 'lon']].round(4)
+    
 
     PID_df[['lat', 'lon']] = PID_df[['lat', 'lon']].round(4)
-    ca_env_df = ca_env_df.merge(PID_df, on=['lat', 'lon'], how='left')
-    ca_env_df.dropna(subset=['PID'], inplace=True)  
-    ca_env_df.drop(columns=['lat', 'lon'], inplace=True)
-
+    env_df = env_df.merge(PID_df, on=['lat', 'lon'], how='left')
+    env_df.dropna(subset=['PID'], inplace=True)  
+    env_df.drop(columns=['lat', 'lon'], inplace=True)
+    
     # Preparing Funcional Diversity Data ------------------------------------------------
 
     table=table[["PID", "accepted_bin"]]
@@ -71,47 +58,48 @@ if __name__ == "__main__":
 
     fd_df.dropna(subset=['Raos_Q'], inplace=True)
 
-    #Loading in Remote sensing data ------------------------------------------------
+    # #Loading in Remote sensing data ------------------------------------------------
 
-    with rasterio.open(tif_path) as src:
-        transform = src.transform
-        crs = src.crs
-        band_names=src.descriptions
-        data = src.read()  
+    # with rasterio.open(tif_path) as src:
+    #     transform = src.transform
+    #     crs = src.crs
+    #     band_names=src.descriptions
+    #     data = src.read()  
 
 
-    # Get row/col indices
-    bands, rows, cols = data.shape
-    row_idx, col_idx = np.meshgrid(
-        np.arange(rows),
-        np.arange(cols),
-        indexing='ij'
-    )
-    # Convert pixel indices → coordinates
-    xs, ys = rasterio.transform.xy(transform, row_idx, col_idx)
+    # # Get row/col indices
+    # bands, rows, cols = data.shape
+    # row_idx, col_idx = np.meshgrid(
+    #     np.arange(rows),
+    #     np.arange(cols),
+    #     indexing='ij'
+    # )
+    # # Convert pixel indices → coordinates
+    # xs, ys = rasterio.transform.xy(transform, row_idx, col_idx)
 
-    # Flatten
-    lons = np.array(xs).flatten()
-    lats = np.array(ys).flatten()
+    # # Flatten
+    # lons = np.array(xs).flatten()
+    # lats = np.array(ys).flatten()
 
-    # Build DataFrame
-    rs_df = pd.DataFrame({
-        'lat': lats,
-        'lon': lons
-    })
+    # # Build DataFrame
+    # rs_df = pd.DataFrame({
+    #     'lat': lats,
+    #     'lon': lons
+    # })
 
-    # Add band values
-    for i in range(bands):
-        rs_df[band_names[i]] = data[i].flatten()
+    # # Add band values
+    # for i in range(bands):
+    #     rs_df[band_names[i]] = data[i].flatten()
 
-    PID_df[['lat', 'lon']] = PID_df[['lat', 'lon']].round(3)
-    rs_df[['lat', 'lon']]=rs_df[['lat', 'lon']].round(3)
+    # PID_df[['lat', 'lon']] = PID_df[['lat', 'lon']].round(3)
+    # rs_df[['lat', 'lon']]=rs_df[['lat', 'lon']].round(3)
 
-    rs_df = rs_df.merge(PID_df, on=['lat', 'lon'], how='left')
-    rs_df.dropna(inplace=True)
+    # rs_df = rs_df.merge(PID_df, on=['lat', 'lon'], how='left')
+    # rs_df.dropna(inplace=True)
 
     # Merging FD and Environmental Data ------------------------------------------------
-    total_df = fd_df.merge(ca_env_df, on='PID', how='inner')
-    total_df = total_df.merge(rs_df, on='PID', how='inner')
+    total_df = fd_df.merge(env_df, on='PID', how='inner')
+    
+    # total_df = total_df.merge(rs_df, on='PID', how='inner')
 
-    total_df.to_csv('data/processed/CA_dataset.csv', index=False)
+    total_df.to_csv('data/processed/dataset.csv', index=False)
