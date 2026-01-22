@@ -186,7 +186,6 @@ def Functional_Evenness(sp_loc: pd.DataFrame, traits: pd.DataFrame, Relative_abu
     FEve_df = pd.DataFrame({"PID": pID, "Functional_Evenness": FEven})
     return FEve_df
 
-
 def Functional_Divergence(sp_loc:pd.DataFrame, traits: pd.DataFrame) -> pd.DataFrame:
     """
     Compute Functional Divergence (FDiv).
@@ -208,6 +207,7 @@ def Functional_Divergence(sp_loc:pd.DataFrame, traits: pd.DataFrame) -> pd.DataF
     for pid, species in zip(species_PID.index,species_PID):
         
         S = len(species)
+        print(S)
 
         if S < 3:
             # FEve undefined for <2 species
@@ -217,24 +217,28 @@ def Functional_Divergence(sp_loc:pd.DataFrame, traits: pd.DataFrame) -> pd.DataF
             continue
 
         ab= sp_loc[sp_loc.index == pid]
+        # Relative abundancesp    
         ab = ab[[c for c in species if c in ab.columns]]
+
+        ab = ab.loc[:, ab.columns.isin(traits["Species"])] # Check that species are in both Dfs
+
         ab = ab.div(ab.sum(axis=1), axis=0)
         ab=np.array(ab)[0]
-        
 
         # Subset traits for present species
         trait_array = traits[traits["Species"].isin(species)].copy()
         trait_array.drop(columns=['Species'], inplace=True)
 
+
         # Compute community centroid
         centroid = np.array(np.mean(trait_array, axis=0))
         trait_array=np.array(trait_array)
-
-        distances = np.linalg.norm(trait_array - centroid, axis=1)   
+        distances = np.linalg.norm(trait_array - centroid, axis=1) 
         dG= np.mean(distances)
-        # Distances to centroid
 
+        # Distances to centroid
         delta_d= np.sum(ab * (distances - dG))
+
         abs_delta_d = np.sum(ab * np.abs(distances - dG))
 
         FDiv = (delta_d + dG) / (abs_delta_d + dG)
