@@ -1,11 +1,12 @@
 import pandas as pd
-import generate_fd as gfd
+import generate_metrics as gm
 import rasterio
 import pyarrow as pa
 import pyarrow.ipc as ipc
 import os 
 import numpy as np
 import warnings
+from process_arrow import load_arrow
 
 warnings.simplefilter(action='ignore', category=pd.errors.SettingWithCopyWarning)
 
@@ -28,7 +29,6 @@ if __name__ == "__main__":
     PID_df=pd.read_csv('data/lookup/PID_location_all.csv')
     table = pd.read_csv('data/processed/species_abundance_all.csv')
     traits=pd.read_csv("data/lookup/traitMatrix.csv")
-    # tif_path = "data/Tiff/MODIS_CA_2015.tif"  
 
 
     # Preparing Composite Data ------------------------------------------------
@@ -44,62 +44,37 @@ if __name__ == "__main__":
     env_df.drop(columns=['lat', 'lon'], inplace=True)
     
     # Preparing Funcional Diversity Data ------------------------------------------------
+    folder= "data/FIA_states"
+    i=1
+    for file in os.listdir(folder):
+        if file.endswith(".arrow"):
+            filepath= os.path.join(folder, file)
 
-    table=table[["PID", "accepted_bin"]]
+            try:
+                reader = ipc.RecordBatchFileReader(filepath)
+                table= load_arrow(filepath)
 
-    pivot = pd.crosstab(table["PID"], table["accepted_bin"])
+            except pa.ArrowInvalid:
+                table = pd.read_feather(filepath)
 
-    pivot.columns.name = None       # remove the "Type" name
-    pivot = pivot.reset_index() 
+        print((f"Processing {file}"))
 
-    pivot = pivot.set_index("PID")
+        pivot = pd.crosstab(table["PID"], table["accepted_bin"])
 
-    fd_df=gfd.generate_functional_diversity_metrics(pivot, traits)
+        pivot.columns.name = None       # remove the "Type" name
+        pivot = pivot.reset_index() 
 
-    fd_df.dropna(subset=['Raos_Q'], inplace=True)
+        pivot = pivot.set_index("PID")
 
-    # #Loading in Remote sensing data ------------------------------------------------
+        fd_df=gm.generate_functional_diversity_metrics(pivot, traits)
 
-    # with rasterio.open(tif_path) as src:
-    #     transform = src.transform
-    #     crs = src.crs
-    #     band_names=src.descriptions
-    #     data = src.read()  
+        sd_df=gm.generate_species_diversity_metrics(pivot)
 
+        fd_df.dropna(subset=['Raos_Q'], inplace=True)
 
-    # # Get row/col indices
-    # bands, rows, cols = data.shape
-    # row_idx, col_idx = np.meshgrid(
-    #     np.arange(rows),
-    #     np.arange(cols),
-    #     indexing='ij'
-    # )
-    # # Convert pixel indices → coordinates
-    # xs, ys = rasterio.transform.xy(transform, row_idx, col_idx)
+        # Merging FD and Environmental Data ------------------------------------------------
+        total_df = fd_df.merge(env_df, on='PID', how='inner').merge(sd_df, on='PID', how='inner')
+        
+        # total_df = total_df.merge(rs_df, on='PID', how='inner')
 
-    # # Flatten
-    # lons = np.array(xs).flatten()
-    # lats = np.array(ys).flatten()
-
-    # # Build DataFrame
-    # rs_df = pd.DataFrame({
-    #     'lat': lats,
-    #     'lon': lons
-    # })
-
-    # # Add band values
-    # for i in range(bands):
-    #     rs_df[band_names[i]] = data[i].flatten()
-
-    # PID_df[['lat', 'lon']] = PID_df[['lat', 'lon']].round(3)
-    # rs_df[['lat', 'lon']]=rs_df[['lat', 'lon']].round(3)
-
-    # rs_df = rs_df.merge(PID_df, on=['lat', 'lon'], how='left')
-    # rs_df.dropna(inplace=True)
-
-    # Merging FD and Environmental Data ------------------------------------------------
-    total_df = fd_df.merge(env_df, on='PID', how='inner')
-    
-    # total_df = total_df.merge(rs_df, on='PID', how='inner')
-
-    total_df.to_csv('data/processed/dataset.csv', index=False)
+        total_df.to_csv(f'data/joined/dataset{i}.csv', index=False)
