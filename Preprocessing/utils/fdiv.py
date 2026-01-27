@@ -162,6 +162,9 @@ def Functional_Evenness(sp_loc: pd.DataFrame, traits: pd.DataFrame, Relative_abu
         if Relative_abundance:
             ab= sp_loc[sp_loc.index == pid]
             ab = ab[[c for c in species if c in ab.columns]]
+
+            ab = ab.loc[:, ab.columns.isin(traits["Species"])] # Check that species are in both Dfs
+
             ab = ab.div(ab.sum(axis=1), axis=0)
             ab=np.array(ab)[0]
 
@@ -207,8 +210,7 @@ def Functional_Divergence(sp_loc:pd.DataFrame, traits: pd.DataFrame) -> pd.DataF
     for pid, species in zip(species_PID.index,species_PID):
         
         S = len(species)
-        print(S)
-
+        
         if S < 3:
             # FEve undefined for <2 species
             FDivergence.append(np.nan)
@@ -348,6 +350,10 @@ def Raos_Q(sp_loc:pd.DataFrame, traits: np.ndarray) -> pd.DataFrame():
         
         ab= sp_loc[sp_loc.index == pid]
         ab = ab[[c for c in species if c in ab.columns]]
+
+        ab = ab.loc[:, ab.columns.isin(traits["Species"])] # Check that species are in both Dfs
+
+
         ab = ab.div(ab.sum(axis=1), axis=0)
         ab=np.array(ab)[0]
 
