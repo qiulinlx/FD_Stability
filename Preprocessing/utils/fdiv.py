@@ -58,7 +58,7 @@ def Functional_Richness(sp_loc:pd.DataFrame, traits: np.ndarray) -> pd.DataFrame
 
         n_species, n_traits = traits_scaled.shape
         
-        if n_species <= n_traits:
+        if n_species <= n_traits  or n_species < 3:
             print(f"Skipping PID {pid}")
             # FEve undefined for <2 species
             Frich.append(np.nan)
