@@ -372,3 +372,33 @@ def Raos_Q(sp_loc:pd.DataFrame, traits: np.ndarray) -> pd.DataFrame():
     RQ_df = pd.DataFrame({"PID": pID, "Raos_Q": RaosQ})
 
     return RQ_df
+
+def MPD(sp_loc:pd.DataFrame, traits: np.ndarray) -> pd.DataFrame():
+    pID = []
+    mpd_list = []
+
+    species_PID = sp_loc.apply(lambda row: row.index[row != 0].tolist(), axis=1)
+
+    for pid, species in zip(species_PID.index,species_PID):
+
+        S = len(species)
+
+        if S < 3:
+            # Metric undefined for <2 species
+            mpd_list.append(np.nan)
+            pID.append(pid)
+            
+            continue
+        
+        traits_sub = traits[traits["Species"].isin(species)].copy()
+        traits_sub.drop(columns=['Species'], inplace=True)
+
+        # pairwise distances
+        distances = pdist(traits_sub.values, metric="euclidean")
+
+        # MPD
+        mpd = distances.mean()
+        mpd_list.append(mpd)
+        pID.append(pid)
+
+    return pd.DataFrame({"PID": pID, "Mean Pairwise D": mpd_list})
