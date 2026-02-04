@@ -7,7 +7,7 @@ import utils.sdiv as sd
 
 warnings.simplefilter(action='ignore', category=pd.errors.SettingWithCopyWarning)
 
-def generate_functional_diversity_metrics(df, traits):
+def generate_functional_diversity_metrics(df:pd.DataFrame, traits:pd.DataFrame)->pd.DataFrame:
     species= df.columns.tolist()
 
     traits = traits[traits["Species"].isin(species)]
@@ -25,7 +25,7 @@ def generate_functional_diversity_metrics(df, traits):
     return df
 
 
-def generate_functional_diversity_metrics(df):
+def generate_species_diversity_metrics(df):
 
     sp_df=sd.species_richness(df)
     shannon_df=sd.shannon_diversity(df)

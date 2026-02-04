@@ -52,20 +52,20 @@ def Functional_Richness(sp_loc:pd.DataFrame, traits: np.ndarray) -> pd.DataFrame
         # Select traits for species
         traits_sub = traits[traits["Species"].isin(species)].copy()
         traits_sub.drop(columns=['Species'], inplace=True)
-        
-        # Scale traits
-        traits_scaled = StandardScaler().fit_transform(traits_sub)
 
-        n_species, n_traits = traits_scaled.shape
-        
+        n_species, n_traits = np.array(traits_sub).shape
+
         if n_species <= n_traits  or n_species < 3:
-            print(f"Skipping PID {pid}")
             # FEve undefined for <2 species
             Frich.append(np.nan)
             pID.append(pid)
             
             continue
             continue  # will automatically go to the next iteration
+        # Scale traits
+        traits_scaled = StandardScaler().fit_transform(traits_sub)
+
+        n_species, n_traits = traits_scaled.shape
 
         hull = ConvexHull(traits_scaled)
         FRic = hull.volume

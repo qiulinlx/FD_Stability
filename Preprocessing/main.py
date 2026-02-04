@@ -70,11 +70,10 @@ if __name__ == "__main__":
 
         sd_df=gm.generate_species_diversity_metrics(pivot)
 
-        fd_df.dropna(subset=['Raos_Q'], inplace=True)
-
         # Merging FD and Environmental Data ------------------------------------------------
         total_df = fd_df.merge(env_df, on='PID', how='inner').merge(sd_df, on='PID', how='inner')
         
         # total_df = total_df.merge(rs_df, on='PID', how='inner')
 
         total_df.to_csv(f'data/joined/dataset{i}.csv', index=False)
+        i+=1
