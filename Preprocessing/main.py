@@ -25,9 +25,9 @@ if __name__ == "__main__":
     "EarthEnvTopoMed_Northness"
     ]
 
-    env_df= pd.read_csv('data/Composite.csv')
-    PID_df=pd.read_csv('data/lookup/PID_location_all.csv')
-    table = pd.read_csv('data/processed/species_abundance_all.csv')
+    env_df= pd.read_csv('data/raw/Composite.csv')
+    PID_df=pd.read_csv('data/lookup/PID_location.csv')
+    table = load_arrow('data/FIA_states/FIA_CA.arrow')
     traits=pd.read_csv("data/lookup/traitMatrix.csv")
 
 
