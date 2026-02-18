@@ -6,7 +6,7 @@ import geopandas as gpd
 tiff_path = "data/CSC/stitched_csc_PID.tif"
 df_pid=pd.read_csv("data/lookup/PID_location_all.csv")
 
-df_pid.drop_duplicated(inplace =True)
+df_pid.drop_duplicates(inplace =True)
 
 with rasterio.open(tiff_path) as src:
     csc = src.read(1)  # first band
@@ -55,8 +55,7 @@ gdf2 = gdf2.to_crs(epsg=3395)
 #Nearest Join in 500m since we have 500m resolution
 df_joined = gpd.sjoin_nearest(gdf1, gdf2, max_distance=500, distance_col="dist")
 
-df_joined.drop(columns=['Unnamed: 0', 
-                        'PID_right', 
+df_joined.drop(columns=['PID_right', 
                         'lat_left', 
                         'lon_left', 
                         'geometry', 
