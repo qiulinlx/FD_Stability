@@ -47,7 +47,6 @@ def detrend_pid(group):
     return group
 
 
-
 df = pd.read_parquet("data/dataset.parquet")
 PID_df=pd.read_csv('data/lookup/PID_location_all.csv')
 df_joined=pd.read_csv('data/processed/PID_npp.csv')
@@ -69,7 +68,7 @@ plt.ylabel("Count")
 plt.title("Distribution of Temporal Autocorrelation")
 plt.show()
 
-# Plot 2
+# Plot 2 -------------------------------
 
 total_df = df.merge(PID_df, on='PID', how='inner')
 
