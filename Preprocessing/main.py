@@ -27,8 +27,11 @@ if __name__ == "__main__":
 
     env_df= pd.read_csv('data/Composite.csv')
     PID_df=pd.read_csv('data/lookup/PID_location_all.csv')
-    table = load_arrow('data/FIA_states/FIA_CA.arrow')
     traits=pd.read_csv("data/lookup/traitMatrix.csv")
+
+    PID_df["managed"] = PID_df["managed"].fillna(-1)
+    PID_df["ownership"] = PID_df["ownership"].fillna("No Data")
+    PID_df["biome"] = PID_df["biome"].fillna("No Data")
 
 
     # Preparing Composite Data ------------------------------------------------

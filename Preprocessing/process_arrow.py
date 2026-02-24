@@ -39,8 +39,8 @@ if __name__ == "__main__":
     df1=df[['PID', "accepted_bin"]].copy()
     df1.dropna(inplace=True)
 
-    df2= df[['PID', 'LAT', 'LON']].copy()
-    df2.dropna(inplace=True)
+    df2= df[['PID', 'LAT', 'LON', 'BHAGE','managed', 'ownership', 'biome']].copy()
+    df2.dropna(subset=['LAT', 'LON'], inplace=True)
 
     df2 = df2.rename(columns={
     'LAT': 'lat',
