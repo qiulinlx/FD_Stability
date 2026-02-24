@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-
+import pickle
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 from utils.data_utils import data_preprocessing
@@ -10,7 +10,7 @@ from utils.data_utils import evaluate_rf
 if __name__ == "__main__":
 
     TEST_SIZE = 0.2
-    RANDOM_KEY = 42
+    RANDOM_KEY = 21
 
     df = pd.read_parquet("data/dataset.parquet")
     y_df= pd.read_csv('npp_processed.csv')
@@ -40,5 +40,13 @@ if __name__ == "__main__":
     sd_reg.fit(sX_train, sy_train)
 
 
-    evaluate_rf(fX_test, fy_test, fd_reg, feature_names=fd_x.columns, importance= True)
-    evaluate_rf(sX_test, sy_test, sd_reg, feature_names=sd_x.columns, importance= True)
+
+    with open("sd_model.pkl", "wb") as f:
+        pickle.dump(sd_reg, f)
+
+
+    with open("fd_model.pkl", "wb") as f:
+        pickle.dump(fd_reg, f)
+
+    evaluate_rf(fX_test, fy_test, fd_reg, feature_names=fd_x.columns, importance= True, div_type= 'f')
+    evaluate_rf(sX_test, sy_test, sd_reg, feature_names=sd_x.columns, importance= True,  div_type= 's')

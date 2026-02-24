@@ -7,5 +7,4 @@
 *.env
 /R_Code
 .Rproj.user
-/visualisations
 /results

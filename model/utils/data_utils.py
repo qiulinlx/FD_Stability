@@ -3,6 +3,7 @@ import pandas as pd
 from sklearn.metrics import mean_absolute_error
 from sklearn.metrics import r2_score
 from sklearn.metrics import mean_absolute_error
+import numpy as np
 
 import matplotlib.pyplot as plt
 
@@ -54,12 +55,12 @@ def evaluate_rf(X_test, y_test, regr, feature_names: list, importance: bool, div
         feature_imp_df = pd.concat([feature_imp_df, pd.DataFrame([new_row])], ignore_index=True).sort_values('Gini Importance', ascending=False)
         print(feature_imp_df)
         
-        plt.figure(figsize=(8, 4))
+        plt.figure(figsize=(10, 4))
         plt.barh(feature_names, importances, color='skyblue')
         plt.xlabel('Gini Importance')
         plt.title('Feature Importance - Gini Importance')
         plt.gca().invert_yaxis()
         plt.savefig(f'results/rf_importances{np.random.randint(1,100)}.png')
 
-    with open("results/experiments.txt", "w") as f:
+    with open("results/experiments.txt", "a") as f:
         f.write(f" {a}:  \n R2 output: {r2}, MAE output: {mae} \n")

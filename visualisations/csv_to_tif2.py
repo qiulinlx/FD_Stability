@@ -7,9 +7,9 @@ from rasterio.transform import from_origin
 # ---------------------------------------------------
 # Settings
 # ---------------------------------------------------
-CSV_PATH = "data/PID_location.csv"
+CSV_PATH = "data/lookup/PID_location_all.csv"
 OUT_TIF = "PID_map.tif"
-RESOLUTION = 0.01     # degrees (~1 km) adjust as needed
+RESOLUTION = 0.001     # degrees (~1 km) adjust as needed
 CRS = "EPSG:4326"     # WGS84 (same as lon/lat)
 # ---------------------------------------------------
 
