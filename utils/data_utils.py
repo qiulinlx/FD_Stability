@@ -15,7 +15,7 @@ def data_preprocessing(df, npp_df, csc_df):
 
     y_df=npp_df.merge(csc_df,  on='PID', how='inner')
     y_df.rename(columns={"mean": "npp"}, inplace=True)
-    y_df.drop(columns=['Unnamed: 0_x', 'Unnamed: 0_y'], inplace=True)
+    # y_df.drop(columns=['Unnamed: 0_x', 'Unnamed: 0_y'], inplace=True)
 
 
     fd_df=df.copy()
@@ -55,7 +55,7 @@ def evaluate_rf(X_test, y_test, regr, feature_names: list, importance: bool, div
         feature_imp_df = pd.concat([feature_imp_df, pd.DataFrame([new_row])], ignore_index=True).sort_values('Gini Importance', ascending=False)
         print(feature_imp_df)
         
-        plt.figure(figsize=(10, 4))
+        plt.figure(figsize=(15, 10))
         plt.barh(feature_names, importances, color='skyblue')
         plt.xlabel('Gini Importance')
         plt.title('Feature Importance - Gini Importance')

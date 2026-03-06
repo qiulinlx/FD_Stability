@@ -2,6 +2,7 @@ import pandas as pd
 from scipy.signal import detrend
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
+from arch import arch_model
 
 import matplotlib.colors as mcolors
 
@@ -36,6 +37,17 @@ ownership = {
     'No Data': 'gray'
 
 }
+
+def arch_coeff(series):
+    series = series.dropna()
+    if len(series) < 5:
+        return None
+    # series = series * 10
+    am = arch_model(series, vol='ARCH', p=1)
+    res = am.fit(disp='off')
+    
+    return res.params['alpha[1]']
+
 
 def ols_ar1(group, npp_col="Npp"):
     group = group.sort_values("year")
@@ -84,8 +96,9 @@ def cleaning(PID_df, csc_df, npp_df):
     PID_df["managed"] = PID_df["managed"].fillna(-1)
     PID_df["ownership"] = PID_df["ownership"].fillna("No Data")
     PID_df["biome"] = PID_df["biome"].fillna("No Data")
-    PID_df = PID_df[PID_df["lon"] <= 0]
-    PID_df = PID_df[PID_df["lat"] > 22]
+    if 'lon' in PID_df.columns and 'lat' in PID_df.columns:
+        PID_df = PID_df[PID_df["lon"] <= 0]
+        PID_df = PID_df[PID_df["lat"] > 22]
 
     csc_df.rename(columns={'PID_left': "PID"}, inplace= True)
     csc_df.drop(columns=['Unnamed: 0'], inplace=True)
