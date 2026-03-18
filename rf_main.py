@@ -37,7 +37,6 @@ if __name__ == "__main__":
 
     sd_df, fd_df=data_preprocessing(df, npp_df, csc_df)
 
-
     fd_x=fd_df.drop(columns=y+['PID'])
     fy = np.column_stack([fd_df['transformed npp'], fd_df['csc']])
 
@@ -47,11 +46,11 @@ if __name__ == "__main__":
     fX_train, fX_test, fy_train, fy_test = train_test_split(fd_x, fy, test_size=TEST_SIZE, random_state=RANDOM_KEY, stratify=fy)
     sX_train, sX_test, sy_train, sy_test = train_test_split(sd_x, sy, test_size=TEST_SIZE, random_state=RANDOM_KEY, stratify=sy)
 
-    fd_reg = RandomForestRegressor(random_state=RANDOM_KEY, max_depth=3)
+    fd_reg = RandomForestRegressor(random_state=RANDOM_KEY, max_depth=5, n_jobs=4)
     fd_reg.fit(fX_train, fy_train)
 
 
-    sd_reg = RandomForestRegressor(random_state=RANDOM_KEY, max_depth=3)
+    sd_reg = RandomForestRegressor(random_state=RANDOM_KEY, max_depth=5, n_jobs=4)
     sd_reg.fit(sX_train, sy_train)
 
 

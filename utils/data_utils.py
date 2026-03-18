@@ -1,9 +1,10 @@
 import pandas as pd
+import numpy as np
 
 from sklearn.metrics import mean_absolute_error
 from sklearn.metrics import r2_score
 from sklearn.metrics import mean_absolute_error
-import numpy as np
+from sklearn.preprocessing import LabelEncoder
 
 import matplotlib.pyplot as plt
 
@@ -17,6 +18,13 @@ def data_preprocessing(df, npp_df, csc_df):
     y_df.rename(columns={"mean": "npp"}, inplace=True)
     # y_df.drop(columns=['Unnamed: 0_x', 'Unnamed: 0_y'], inplace=True)
 
+    # df = pd.get_dummies(df, columns=['biome', 'ownership'])
+    # df = df.replace({True: 1, False: 0})
+    le = LabelEncoder()
+    df['biome'] = le.fit_transform(df['biome'])
+
+    le = LabelEncoder()
+    df['ownership'] = le.fit_transform(df['ownership'])
 
     fd_df=df.copy()
     fd_df.drop(columns=['Species Richness', 'Shannon Diversity', "Simpson's Index", "Shannon Equitabiltiy Index", "source_file",  "Functional_Dispersion", "Functional_Divergences"], inplace=True)
