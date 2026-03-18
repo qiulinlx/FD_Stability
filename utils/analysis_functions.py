@@ -48,6 +48,13 @@ def arch_coeff(series):
     
     return res.params['alpha[1]']
 
+def compute_volatility(arr): 
+    arr= arr*10
+    arr = pd.Series(detrend(arr))
+    v=arr.rolling(window=2).std()
+    v.dropna(inplace=True)
+    v=v.mean()
+    return v 
 
 def ols_ar1(group, npp_col="Npp"):
     group = group.sort_values("year")
@@ -67,8 +74,6 @@ def ols_ar1(group, npp_col="Npp"):
     phi = model.params.iloc[1]
 
     return pd.Series({"transformed npp": phi})
-
-
 
 def compute_acf_lags(group, npp_col="Npp", max_lag=3):
     group = group.sort_values("year")
