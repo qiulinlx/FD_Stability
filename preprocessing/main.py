@@ -1,12 +1,21 @@
 import pandas as pd
 import generate_metrics as gm
-import rasterio
 import pyarrow as pa
 import pyarrow.ipc as ipc
 import os 
-import numpy as np
 import warnings
 from process_arrow import load_arrow
+from utils.data_utils import merge_files
+from pathlib import Path
+
+'''
+We run this to:
+    pull data from the Composite file
+    load in the FIA data 
+    generate functional and species diversity metrics
+    merge them all together into a singular dataset
+
+'''
 
 warnings.simplefilter(action='ignore', category=pd.errors.SettingWithCopyWarning)
 
@@ -78,5 +87,9 @@ if __name__ == "__main__":
         
         # total_df = total_df.merge(rs_df, on='PID', how='inner')
 
-        total_df.to_csv(f'data/joined/dataset{i}.csv', index=False)
+        total_df.to_csv(f'data/.joined/dataset{i}.csv', index=False)
         i+=1
+
+    csv_dir = Path("data/.joined")
+    out_file = "dataset.parquet"
+    merge_files(csv_dir, out_file)

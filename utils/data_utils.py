@@ -7,7 +7,23 @@ from sklearn.metrics import mean_absolute_error
 from sklearn.preprocessing import LabelEncoder
 
 import matplotlib.pyplot as plt
+import os
 
+def merge_files(csv_dir, out_file):
+
+    dtype_map = {
+        "value": "float64"
+    }
+    dfs = []
+    for csv in csv_dir.glob("*.csv"):
+        df = pd.read_csv(csv, dtype=dtype_map)
+        df["source_file"] = csv.name   # optional but VERY useful
+        dfs.append(df)
+
+    stacked = pd.concat(dfs, ignore_index=True)
+
+    stacked.to_parquet(out_file, engine="pyarrow", compression="snappy")
+    os.remove(csv_dir) 
 
 def data_preprocessing(df, npp_df, csc_df):
     """
@@ -72,3 +88,5 @@ def evaluate_rf(X_test, y_test, regr, feature_names: list, importance: bool, div
 
     with open("results/experiments.txt", "a") as f:
         f.write(f" {a}:  \n R2 output: {r2}, MAE output: {mae} \n")
+csv_dir = Path("data/joined")
+out_file = "dataset.parquet"
