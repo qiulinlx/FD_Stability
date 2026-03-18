@@ -1,5 +1,4 @@
-# Functional Diversity Toolkit
-
+# Chapter 1 
 
 
 A collection of Python functions and tools for exploring ecological and trait-based data. 
