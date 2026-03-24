@@ -1,4 +1,4 @@
-torch
+torch ==2.1.2
 numpy
 pandas
 scikit-learn
@@ -8,6 +8,5 @@ seaborn
 statsmodels
 joblib
 geopandas
-rasterio
 shapely
 pyproj

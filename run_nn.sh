@@ -31,6 +31,8 @@ nvidia-smi
 # Activate environment
 source /home/qiulinli/FD_Stability/dl_env/bin/activate
 
+uv pip install -r requirements.txt
+
 echo "Python path:"
 which python
 
