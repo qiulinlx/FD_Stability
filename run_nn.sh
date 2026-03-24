@@ -54,7 +54,7 @@ nvidia-smi
 # Load the required Python environment.
 # Note: Python 3.9 is slightly outdated. Consider a newer version if supported.
 # See available modules at: https://hpc.cs.ucl.ac.uk/software/
-source /share/apps/source_files/python/python-3.9.5.source
+# source /share/apps/source_files/python/python-3.9.5.source
 
 source dl_env/bin/activate
 
