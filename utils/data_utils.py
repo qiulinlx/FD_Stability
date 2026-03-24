@@ -8,6 +8,7 @@ from sklearn.preprocessing import LabelEncoder
 
 import matplotlib.pyplot as plt
 import os
+from pathlib import Path
 
 def merge_files(csv_dir, out_file):
 
@@ -73,20 +74,43 @@ def evaluate_rf(X_test, y_test, regr, feature_names: list, importance: bool, div
             a='Species Diversity'
 
         feature_imp_df = pd.DataFrame({'Feature': feature_names, 'Gini Importance': importances})
-        fd_i = feature_imp_df.loc[feature_imp_df['Feature'].isin(f_list)].sum()
-        fd_i['Gini Importance']
-        new_row = {'Feature': a, 'Gini Importance': fd_i['Gini Importance']}
-        feature_imp_df = pd.concat([feature_imp_df, pd.DataFrame([new_row])], ignore_index=True).sort_values('Gini Importance', ascending=False)
-        print(feature_imp_df)
         
-        plt.figure(figsize=(15, 10))
-        plt.barh(feature_names, importances, color='skyblue')
+        mask = feature_imp_df['Feature'].isin(f_list)
+
+        # Sum their importance
+        group_sum = feature_imp_df.loc[mask, 'Gini Importance'].sum()
+
+        # Remove those rows
+        feature_imp_df = feature_imp_df.loc[~mask]
+
+        # Add new aggregated row
+        new_row = pd.DataFrame([{
+            'Feature': a,  # your new grouped feature name
+            'Gini Importance': group_sum
+        }])
+
+        feature_imp_df = pd.concat([feature_imp_df, new_row], ignore_index=True)
+
+                
+        
+        feature_imp_df = feature_imp_df.sort_values('Gini Importance', ascending=False)
+
+        plt.figure(figsize=(20, 10))
+
+        plt.barh(
+            feature_imp_df['Feature'],
+            feature_imp_df['Gini Importance']
+        )
+
         plt.xlabel('Gini Importance')
         plt.title('Feature Importance - Gini Importance')
+
+        # Most important at the top
         plt.gca().invert_yaxis()
+
         plt.savefig(f'results/rf_importances{np.random.randint(1,100)}.png')
 
     with open("results/experiments.txt", "a") as f:
         f.write(f" {a}:  \n R2 output: {r2}, MAE output: {mae} \n")
-csv_dir = Path("data/joined")
+csv_dir = Path("data/.joined")
 out_file = "dataset.parquet"

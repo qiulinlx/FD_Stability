@@ -3,6 +3,17 @@ import geopandas as gpd
 import numpy as np
 
 
+def process_ecoregion(path: str):
+
+    ecoregions = gpd.read_file("sample/Ecoregions/Ecoregions2017.shp")
+    ecoregions = ecoregions.to_crs("EPSG:4326")
+
+    bbox = (-170, 5, -50, 85)
+    crop_box = box(*bbox)
+
+    ecoregions = ecoregions[ecoregions.intersects(crop_box)].copy()
+    return ecoregions
+
 
 def assign_spatial_groups(df, grid_size=1.0):
     df = df.copy()

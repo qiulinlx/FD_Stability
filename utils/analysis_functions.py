@@ -3,7 +3,7 @@ from scipy.signal import detrend
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 from arch import arch_model
-
+import numpy as np
 import matplotlib.colors as mcolors
 
 # Assign a color to each forest type
@@ -49,12 +49,15 @@ def arch_coeff(series):
     return res.params['alpha[1]']
 
 def compute_volatility(arr): 
-    arr= arr*10
-    arr = pd.Series(detrend(arr))
-    v=arr.rolling(window=2).std()
-    v.dropna(inplace=True)
-    v=v.mean()
-    return v 
+    '''
+    Log of inverse CoV
+    '''
+    s=arr.mean()
+
+    arr= pd.Series(detrend(arr*10))
+    
+    v= np.log(s/arr.std())
+    return v , s
 
 def ols_ar1(group, npp_col="Npp"):
     group = group.sort_values("year")

@@ -43,19 +43,6 @@ class Dataset(torch.utils.data.Dataset): #Initialsing a structure to pass each l
     def __getitem__(self, i):
         return self.X[i], self.y[i]
 
-
-def process_ecoregion(path: str):
-
-    ecoregions = gpd.read_file("sample/Ecoregions/Ecoregions2017.shp")
-    ecoregions = ecoregions.to_crs("EPSG:4326")
-
-    bbox = (-170, 5, -50, 85)
-    crop_box = box(*bbox)
-
-    ecoregions = ecoregions[ecoregions.intersects(crop_box)].copy()
-    return ecoregions
-
-
 if __name__ == "__main__":
 
     with open("parameters.yaml", "r") as f:
@@ -67,10 +54,10 @@ if __name__ == "__main__":
     DATA_PATH = config['data']['path']
     EXPLAINABLE = config['integrated']
 
-    df= pd.read_csv("sample/fd_df.csv")
-    PID_loc= pd.read_csv("sample/PID_location_all.csv")
+    df= pd.read_csv("final/fd_df.csv")
+    PID_loc= pd.read_csv("lookup/PID_location_all.csv")
 
-    ecoregions=process_ecoregion("sample/Ecoregions/Ecoregions2017.shp")
+    ecoregions=cval.process_ecoregion("data/Ecoregions/Ecoregions2017.shp")
 
     df=df.merge(PID_loc, on="PID", how="left")
     df.dropna(subset=["lat", "lon"], inplace=True)
