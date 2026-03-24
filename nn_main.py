@@ -129,8 +129,7 @@ if __name__ == "__main__":
             lrs.append(optimizer.param_groups[0]["lr"])
             # scheduler.step()
             train_loss += loss.item()
-            print('training...')
-
+        print('finish training')
         #validate the model
         model.eval()
         for data, target in valloader:
@@ -181,11 +180,10 @@ if __name__ == "__main__":
     plt.plot(tleng, testloss, color='green', label= 'Test loss')
     plt.title( "Loss function over time")
     plt.legend()
-    plt.show()
+    plt.savefig('training.png')
 
-    plt.show()
     plt.plot(N_EPOCHS,lrs, color='black', label= 'learning rate')
-    plt.show()
+    plt.savefig('idk,png')
 
     # if EXPLAINABLE:
     #     model.eval()
