@@ -13,7 +13,7 @@
 #$ -l tmem=10G
 
 # Working Directory: Set to the directory from which the job is submitted.
-#$ -wd /home/smartine/scripts/example/
+$ -wd /home/qiulinli/FD_Stability
 
 # Job Name: Useful for tracking and log file naming
 # (e.g., TestPythonScript.o<JOB_ID>).
