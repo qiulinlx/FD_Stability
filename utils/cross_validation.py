@@ -1,11 +1,12 @@
 import pandas as pd
 import geopandas as gpd
 import numpy as np
+from shapely.geometry import box
 
 
 def process_ecoregion(path: str):
 
-    ecoregions = gpd.read_file("sample/Ecoregions/Ecoregions2017.shp")
+    ecoregions = gpd.read_file(path)
     ecoregions = ecoregions.to_crs("EPSG:4326")
 
     bbox = (-170, 5, -50, 85)

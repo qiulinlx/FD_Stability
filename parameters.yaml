@@ -5,6 +5,6 @@ training:
 
 data:
   path: "sample/fd_df.csv"
-  test_size: 
+  test_size: 0.2
 
 integrated:

@@ -1,13 +1,11 @@
 import numpy as np 
 import pandas as pd 
 import geopandas as gpd
-from shapely.geometry import box
 import utils.cross_validation as cval
 import torch
 from torch import nn
-from nn_utils import Dataset, MLP
 import matplotlib as plt
-from captum.attr import IntegratedGradients
+# from captum.attr import IntegratedGradients
 
 import yaml
 
@@ -51,11 +49,11 @@ if __name__ == "__main__":
     N_EPOCHS = config['training']['epochs']
     TEST_SIZE = config['data']['test_size']
     BATCH_SIZE = config['training']['batch_size']
-    DATA_PATH = config['data']['path']
+    # DATA_PATH = config['data']['path']
     EXPLAINABLE = config['integrated']
 
-    df= pd.read_csv("final/fd_df.csv")
-    PID_loc= pd.read_csv("lookup/PID_location_all.csv")
+    df= pd.read_csv("data/final/fd_df.csv")
+    PID_loc= pd.read_csv("data/lookup/PID_location_all.csv")
 
     ecoregions=cval.process_ecoregion("data/Ecoregions/Ecoregions2017.shp")
 
@@ -101,13 +99,13 @@ if __name__ == "__main__":
     #Initialize the NN
     model = MLP()
     criterion = nn.L1Loss() #Loss function
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.002) #Gradient descent
-    lambda1 = lambda epoch: 0.65 ** epoch
-    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda1)
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.001) #Gradient descent
+    # lambda1 = lambda epoch: 0.65 ** epoch
+    # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda1)
 
-    trainloader = torch.utils.data.DataLoader( dataset,  batch_size=BATCH_SIZE) #Dataloaders
-    valloader = torch.utils.data.DataLoader( dataset, batch_size=BATCH_SIZE)
-    testloader = torch.utils.data.DataLoader( testset, batch_size=BATCH_SIZE)
+    trainloader = torch.utils.data.DataLoader( dataset,  batch_size=BATCH_SIZE, num_workers=8)
+    valloader = torch.utils.data.DataLoader( dataset, batch_size=BATCH_SIZE, num_workers=8)
+    testloader = torch.utils.data.DataLoader( testset, batch_size=BATCH_SIZE, num_workers=8)
 
      
     for epoch in range(N_EPOCHS): 
@@ -129,27 +127,28 @@ if __name__ == "__main__":
             loss.backward() #backward pass: compute gradient of the loss with respect to model parameters
             optimizer.step() #perform a single optimization step (parameter update)
             lrs.append(optimizer.param_groups[0]["lr"])
-            scheduler.step()
+            # scheduler.step()
             train_loss += loss.item()
+            print('training...')
 
-    #validate the model
-    model.eval()
-    for data, target in valloader:
-        data, target = data.float(), target.float()
-        output = model(data)  # forward pass: compute predicted outputs by passing inputs to the model
-        loss1 = criterion(output, target) # calculate the loss
-        valid_loss += loss1.item()
+        #validate the model
+        model.eval()
+        for data, target in valloader:
+            with torch.no_grad():
+                data, target = data.float(), target.float()
+                output = model(data)  # forward pass: compute predicted outputs by passing inputs to the model
+                loss1 = criterion(output, target) # calculate the loss
+                valid_loss += loss1.item()
 
-        train_loss = train_loss/len(trainloader)
-        tloss.append(train_loss)
-        valid_loss = valid_loss/len(valloader)
-        vloss.append(valid_loss)
-        print('Epoch: {} \tTraining Loss: {:.6f} \tValidation Loss: {:.6f}'.format( epoch+1, train_loss, valid_loss))
-        torch.save(model.state_dict(), 'model.pt')
+                train_loss = train_loss/len(trainloader)
+                tloss.append(train_loss)
+                valid_loss = valid_loss/len(valloader)
+                vloss.append(valid_loss)
+                print('Epoch: {} \tTraining Loss: {:.6f} \tValidation Loss: {:.6f}'.format( epoch+1, train_loss, valid_loss))
+        
+    
+    torch.save(model.state_dict(), 'model.pt')
 
-        model.load_state_dict(torch.load('model.pt'))
-
-    #initialize lists to monitor test loss and accuracy
     test_loss = 0.0
 
     model.eval() # prep model for evaluation
