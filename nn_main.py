@@ -106,6 +106,10 @@ if __name__ == "__main__":
     trainloader = torch.utils.data.DataLoader( dataset,  batch_size=BATCH_SIZE, num_workers=8)
     valloader = torch.utils.data.DataLoader( dataset, batch_size=BATCH_SIZE, num_workers=8)
     testloader = torch.utils.data.DataLoader( testset, batch_size=BATCH_SIZE, num_workers=8)
+    
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    model = model.to(device)
 
      
     for epoch in range(N_EPOCHS): 
