@@ -100,7 +100,7 @@ if __name__ == "__main__":
 
     #Initialize the NN
     model = MLP()
-    criterion = nn.L1Loss() #Loss function
+    criterion = nn.MSELoss() #Loss function
     optimizer = torch.optim.SGD(model.parameters(), lr=0.001) #Gradient descent
     # lambda1 = lambda epoch: 0.65 ** epoch
     # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda1)
@@ -120,8 +120,8 @@ if __name__ == "__main__":
 
         #train the model -------------------------------
         model.train() # prep model for training
-
-        for data, target in trainloader:
+        print(len(trainloader))
+        for data, target in enumerate(trainloader):
             data=data.float()
             target=target.float()
             # target = target.reshape((target.shape[0], 1))
@@ -136,10 +136,11 @@ if __name__ == "__main__":
             # scheduler.step()
             train_loss += loss.item()
             print(f'finish training{loss}')
+       
         #validate the model
         model.eval()
         print(len(valloader))
-        for data, target in valloader:
+        for data, target in enumerate(valloader):
             with torch.no_grad():
                 print('validation')
                 data, target = data.float(), target.float()
@@ -177,21 +178,21 @@ if __name__ == "__main__":
             for i in range(N_EPOCHS):
                 testloss.append(test_loss)
 
-    print('the loss on the Test data is', test_loss)
+    # print('the loss on the Test data is', test_loss)
 
-    length= range(0, len(vloss))
-    leng= range(0, len(tloss))
-    tleng=range(0, len(testloss))
+    # length= range(0, len(vloss))
+    # leng= range(0, len(tloss))
+    # tleng=range(0, len(testloss))
 
-    plt.plot(length, vloss,  color="blue", label= "Validation loss")
-    plt.plot(leng, tloss, color='red', label= 'Trainingloss')
-    plt.plot(tleng, testloss, color='green', label= 'Test loss')
-    plt.title( "Loss function over time")
-    plt.legend()
-    plt.savefig('training.png')
+    # plt.plot(length, vloss,  color="blue", label= "Validation loss")
+    # plt.plot(leng, tloss, color='red', label= 'Trainingloss')
+    # plt.plot(tleng, testloss, color='green', label= 'Test loss')
+    # plt.title( "Loss function over time")
+    # plt.legend()
+    # plt.savefig('training.png')
 
-    plt.plot(N_EPOCHS,lrs, color='black', label= 'learning rate')
-    plt.savefig('idk,png')
+    # plt.plot(N_EPOCHS,lrs, color='black', label= 'learning rate')
+    # plt.savefig('idk,png')
 
     # if EXPLAINABLE:
     #     model.eval()
