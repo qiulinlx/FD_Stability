@@ -4,7 +4,7 @@ import geopandas as gpd
 import utils.cross_validation as cval
 import torch
 from torch import nn
-import matplotlib as plt
+import matplotlib.pyplot as plt
 # from captum.attr import IntegratedGradients
 
 import yaml
@@ -138,6 +138,7 @@ if __name__ == "__main__":
         model.eval()
         for data, target in valloader:
             with torch.no_grad():
+                print('validation')
                 data, target = data.float(), target.float()
                 output = model(data)  # forward pass: compute predicted outputs by passing inputs to the model
                 loss1 = criterion(output, target) # calculate the loss
