@@ -135,9 +135,11 @@ if __name__ == "__main__":
             lrs.append(optimizer.param_groups[0]["lr"])
             # scheduler.step()
             train_loss += loss.item()
-        print('finish training')
+            print(f'finish training{loss}')
         #validate the model
         model.eval()
+	print(len(valloader))
+
         for data, target in valloader:
             with torch.no_grad():
                 print('validation')

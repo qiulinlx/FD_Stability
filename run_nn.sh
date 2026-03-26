@@ -26,12 +26,13 @@ echo "Start time:"
 date
 
 echo "GPU info:"
+
+source /share/apps/source_files/cuda/cuda-10.0.source 
+
 nvidia-smi
 
 # Activate environment
 source /home/qiulinli/FD_Stability/dl_env/bin/activate
-
-uv pip install -r requirements.txt
 
 echo "Python path:"
 which python

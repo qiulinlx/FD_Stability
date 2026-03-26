@@ -1,0 +1,41 @@
+GPU Prolog Script v1.14
+This is a GPU node.
+Enough GPUs available.
+Allocating card 0
+Running on:
+minella.local
+Start time:
+Thu 26 Mar 16:39:47 GMT 2026
+GPU info:
+Thu Mar 26 16:39:47 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 550.127.05             Driver Version: 550.127.05     CUDA Version: 12.4     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA A100-PCIE-40GB          On  |   00000000:01:00.0 Off |                    0 |
+| N/A   30C    P0             33W /  250W |       1MiB /  40960MiB |      0%   E. Process |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   1  NVIDIA A100-PCIE-40GB          On  |   00000000:C1:00.0 Off |                    0 |
+| N/A   29C    P0             34W /  250W |       1MiB /  40960MiB |      0%   E. Process |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+                                                                                         
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI        PID   Type   Process name                              GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+Python path:
+/home/qiulinli/FD_Stability/dl_env/bin/python
+  File "/home/qiulinli/FD_Stability/nn_main.py", line 138
+    print(f'finish training{loss}')
+TabError: inconsistent use of tabs and spaces in indentation
+End time:
+Thu 26 Mar 16:39:48 GMT 2026
+GPU Epilog Script v0.30

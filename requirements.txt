@@ -10,3 +10,4 @@ joblib
 geopandas
 shapely
 pyproj
+pyyaml
