@@ -46,7 +46,7 @@ if __name__ == "__main__":
     with open("parameters.yaml", "r") as f:
         config = yaml.safe_load(f)
 
-    N_EPOCHS = config['training']['epochs']
+    N_EPOCHS = 5 #config['training']['epochs']
     TEST_SIZE = 0.4 # config['data']['test_size']
     BATCH_SIZE = 32 #config['training']['batch_size']
     # DATA_PATH = config['data']['path']
@@ -119,28 +119,32 @@ if __name__ == "__main__":
         valid_loss = 0.0
 
         #train the model -------------------------------
-        model.train() # prep model for training
-        print(len(trainloader))
-        for data, target in enumerate(trainloader):
-            data=data.float()
-            target=target.float()
-            # target = target.reshape((target.shape[0], 1))
 
-            output= model(data.float()) #Feedforward
+        model.train()
+
+        for i, (data, target) in enumerate(trainloader):
+            data = data.float()
+            target = target.float()
+
+            output = model(data)
             optimizer.zero_grad()
             loss = criterion(output, target)
 
-            loss.backward() #backward pass: compute gradient of the loss with respect to model parameters
-            optimizer.step() #perform a single optimization step (parameter update)
-            lrs.append(optimizer.param_groups[0]["lr"])
-            # scheduler.step()
+            loss.backward()
+            optimizer.step()
+
             train_loss += loss.item()
-            print(f'finish training{loss}')
+
+            if i % 100 == 0:
+                print(f'Batch {i}, Loss: {loss.item():.4f}')
        
         #validate the model
         model.eval()
         print(len(valloader))
-        for data, target in enumerate(valloader):
+
+        for i, (data, target) in enumerate(trainloader):
+            data = data.float()
+            target = target.float()
             with torch.no_grad():
                 print('validation')
                 data, target = data.float(), target.float()
@@ -148,35 +152,35 @@ if __name__ == "__main__":
                 loss1 = criterion(output, target) # calculate the loss
                 valid_loss += loss1.item()
 
-                train_loss = train_loss/len(trainloader)
-                tloss.append(train_loss)
-                valid_loss = valid_loss/len(valloader)
-                vloss.append(valid_loss)
-                print('Epoch: {} \tTraining Loss: {:.6f} \tValidation Loss: {:.6f}'.format( epoch+1, train_loss, valid_loss))
-        
+        train_loss = train_loss/len(trainloader)
+        tloss.append(train_loss)
+        valid_loss = valid_loss/len(valloader)
+        vloss.append(valid_loss)
+        print('Epoch: {} \tTraining Loss: {:.6f} \tValidation Loss: {:.6f}'.format( epoch+1, train_loss, valid_loss))
+
     
     torch.save(model.state_dict(), 'model.pt')
 
-    test_loss = 0.0
+    # test_loss = 0.0
 
-    model.eval() # prep model for evaluation
-    for data, target in testloader:
-            data, target = data.float(), target.float()
-            target = target.reshape((target.shape[0], 1))
-            #forward pass: compute predicted outputs by passing inputs to the model
-            output = model(data)
-            #calculate the loss
-            loss = criterion(output, target)
-            test_loss += loss.item()
+    # model.eval() # prep model for evaluation
+    # for data, target in testloader:
+    #         data, target = data.float(), target.float()
+    #         target = target.reshape((target.shape[0], 1))
+    #         #forward pass: compute predicted outputs by passing inputs to the model
+    #         output = model(data)
+    #         #calculate the loss
+    #         loss = criterion(output, target)
+    #         test_loss += loss.item()
 
-            #torch.save(model.state_dict(), os.path.join(wandb.run.dir, "model.pt"))
+    #         #torch.save(model.state_dict(), os.path.join(wandb.run.dir, "model.pt"))
 
-            # print training/validation statistics
-            # calculate average loss over an epoch
+    #         # print training/validation statistics
+    #         # calculate average loss over an epoch
         
-            test_loss = test_loss/len(testloader)
-            for i in range(N_EPOCHS):
-                testloss.append(test_loss)
+    #         test_loss = test_loss/len(testloader)
+    #         for i in range(N_EPOCHS):
+    #             testloss.append(test_loss)
 
     # print('the loss on the Test data is', test_loss)
 
