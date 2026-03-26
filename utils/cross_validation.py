@@ -60,7 +60,7 @@ def ecoregion_cross_validation(gdf, ecoregion, test_size, batch_size):
         predicate="within"   # point inside polygon
     )
 
-    grouped_df.dropna(subset=['ECO_BIOME_'], inplace=True)
+    grouped_df.dropna(subset=['ECO_ID'], inplace=True)
 
     # unique groups
     groups = grouped_df["spatial_group"].unique()
@@ -69,6 +69,7 @@ def ecoregion_cross_validation(gdf, ecoregion, test_size, batch_size):
 
     # number to sample
     n_select = int(len(groups) * test_size)
+    print(n_select)
     selected_groups = np.random.choice(groups, size=n_select, replace=False)
     test = grouped_df[grouped_df["spatial_group"].isin(selected_groups)]
     train = grouped_df[~grouped_df["spatial_group"].isin(selected_groups)]

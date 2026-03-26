@@ -71,6 +71,8 @@ if __name__ == "__main__":
         crs="EPSG:4326"  # WGS84
     )
 
+    print('Data loaded')
+
     train, test= cval.ecoregion_cross_validation(gdf, ecoregions, TEST_SIZE, BATCH_SIZE)
 
     train = train.loc[:, :'csc']
