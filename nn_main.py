@@ -138,8 +138,7 @@ if __name__ == "__main__":
             print(f'finish training{loss}')
         #validate the model
         model.eval()
-	print(len(valloader))
-
+        print(len(valloader))
         for data, target in valloader:
             with torch.no_grad():
                 print('validation')
