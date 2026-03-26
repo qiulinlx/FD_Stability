@@ -47,8 +47,8 @@ if __name__ == "__main__":
         config = yaml.safe_load(f)
 
     N_EPOCHS = config['training']['epochs']
-    TEST_SIZE = config['data']['test_size']
-    BATCH_SIZE = config['training']['batch_size']
+    TEST_SIZE = 0.4 # config['data']['test_size']
+    BATCH_SIZE = 32 #config['training']['batch_size']
     # DATA_PATH = config['data']['path']
     EXPLAINABLE = config['integrated']
 
@@ -164,14 +164,14 @@ if __name__ == "__main__":
             loss = criterion(output, target)
             test_loss += loss.item()
 
-        #torch.save(model.state_dict(), os.path.join(wandb.run.dir, "model.pt"))
+            #torch.save(model.state_dict(), os.path.join(wandb.run.dir, "model.pt"))
 
-        # print training/validation statistics
-        # calculate average loss over an epoch
+            # print training/validation statistics
+            # calculate average loss over an epoch
         
-    test_loss = test_loss/len(testloader)
-    for i in range(N_EPOCHS):
-        testloss.append(test_loss)
+            test_loss = test_loss/len(testloader)
+            for i in range(N_EPOCHS):
+                testloss.append(test_loss)
 
     print('the loss on the Test data is', test_loss)
 
