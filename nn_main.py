@@ -47,8 +47,8 @@ if __name__ == "__main__":
         config = yaml.safe_load(f)
 
     N_EPOCHS = 5 #config['training']['epochs']
-    TEST_SIZE = 0.4 # config['data']['test_size']
-    BATCH_SIZE = 32 #config['training']['batch_size']
+    TEST_SIZE = 0.3 # config['data']['test_size']
+    BATCH_SIZE = 16 #config['training']['batch_size']
     # DATA_PATH = config['data']['path']
     EXPLAINABLE = config['integrated']
 
@@ -58,27 +58,19 @@ if __name__ == "__main__":
     ecoregions=cval.process_ecoregion("data/Ecoregions/Ecoregions2017.shp")
 
     df=df.merge(PID_loc, on="PID", how="left")
+    df.dropna(subset=["lat", "lon"], inplace=True)
+
     df = df.drop(columns=[col for col in df.columns if "_y" in col])
     df.columns = df.columns.str.replace('_x$', '', regex=True)
 
     df=cval.assign_spatial_groups(df, grid_size=0.005)
-
-    df.dropna(subset=["lat", "lon"], inplace=True)
 
     gdf = gpd.GeoDataFrame(
         df,
         geometry=gpd.points_from_xy(df["lon"], df["lat"]),
         crs="EPSG:4326"  # WGS84
     )
-    
-    grouped_df = gpd.sjoin(
-        gdf,
-        ecoregions,
-        how="left",          # keep all PIDs
-        predicate="within"   # point inside polygon
-    )
 
-    grouped_df.drop_duplicates(inplace=True)
 
     print('Data loaded')
 
@@ -111,8 +103,8 @@ if __name__ == "__main__":
     model = MLP()
     criterion = nn.MSELoss() #Loss function
     optimizer = torch.optim.SGD(model.parameters(), lr=0.001) #Gradient descent
-    # lambda1 = lambda epoch: 0.65 ** epoch
-    # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda1)
+    lambda1 = lambda epoch: 0.65 ** epoch
+    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda1)
 
     trainloader = torch.utils.data.DataLoader( dataset,  batch_size=BATCH_SIZE, num_workers=8)
     valloader = torch.utils.data.DataLoader( dataset, batch_size=BATCH_SIZE, num_workers=8)
@@ -141,33 +133,32 @@ if __name__ == "__main__":
 
             loss.backward()
             optimizer.step()
+            lrs.append(optimizer.param_groups[0]["lr"])
+            scheduler.step()
 
             train_loss += loss.item()
 
-            if i % 100 == 0:
-                print(f'Batch {i}, Loss: {loss.item():.4f}')
        
-        #validate the model
-        model.eval()
-        print(len(valloader))
+    #validate the model
+    model.eval()
 
-        for i, (data, target) in enumerate(trainloader):
-            data = data.float()
-            target = target.float()
-            with torch.no_grad():
-                print('validation')
-                data, target = data.float(), target.float()
-                output = model(data)  # forward pass: compute predicted outputs by passing inputs to the model
-                loss1 = criterion(output, target) # calculate the loss
-                valid_loss += loss1.item()
+    for i, (data, target) in enumerate(valloader):
+        data = data.float()
+        target = target.float()
+        with torch.no_grad():
+            print('validation')
+            data, target = data.float(), target.float()
+            output = model(data)  # forward pass: compute predicted outputs by passing inputs to the model
+            loss1 = criterion(output, target) # calculate the loss
+            valid_loss += loss1.item()
 
-        train_loss = train_loss/len(trainloader)
-        tloss.append(train_loss)
-        valid_loss = valid_loss/len(valloader)
-        vloss.append(valid_loss)
-        print('Epoch: {} \tTraining Loss: {:.6f} \tValidation Loss: {:.6f}'.format( epoch+1, train_loss, valid_loss))
+    train_loss = train_loss/len(trainloader)
+    tloss.append(train_loss)
+    valid_loss = valid_loss/len(valloader)
+    vloss.append(valid_loss)
+    print('Epoch: {} \tTraining Loss: {:.6f} \tValidation Loss: {:.6f}'.format( epoch+1, train_loss, valid_loss))
 
-    
+
     torch.save(model.state_dict(), 'model.pt')
 
     # test_loss = 0.0
