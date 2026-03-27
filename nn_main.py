@@ -54,6 +54,8 @@ if __name__ == "__main__":
 
     df= pd.read_csv("data/final/fd_df.csv", nrows=1000000)
 
+    print(df.shape)
+
     df.drop_duplicates(inplace=True)
 
     PID_loc= pd.read_csv("data/lookup/PID_location_all.csv")
