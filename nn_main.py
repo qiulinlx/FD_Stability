@@ -58,18 +58,27 @@ if __name__ == "__main__":
     ecoregions=cval.process_ecoregion("data/Ecoregions/Ecoregions2017.shp")
 
     df=df.merge(PID_loc, on="PID", how="left")
-    df.dropna(subset=["lat", "lon"], inplace=True)
-
     df = df.drop(columns=[col for col in df.columns if "_y" in col])
     df.columns = df.columns.str.replace('_x$', '', regex=True)
 
-    df=cval.assign_spatial_groups(df, grid_size=1.0)
+    df=cval.assign_spatial_groups(df, grid_size=0.005)
+
+    df.dropna(subset=["lat", "lon"], inplace=True)
 
     gdf = gpd.GeoDataFrame(
         df,
         geometry=gpd.points_from_xy(df["lon"], df["lat"]),
         crs="EPSG:4326"  # WGS84
     )
+    
+    grouped_df = gpd.sjoin(
+        gdf,
+        ecoregions,
+        how="left",          # keep all PIDs
+        predicate="within"   # point inside polygon
+    )
+
+    grouped_df.drop_duplicates(inplace=True)
 
     print('Data loaded')
 

@@ -18,7 +18,7 @@ def process_ecoregion(path: str):
 
 def assign_spatial_groups(df, grid_size=1.0):
     df = df.copy()
-    
+
     df["lon_bin"] = (df["lon"] // grid_size) * grid_size
     df["lat_bin"] = (df["lat"] // grid_size) * grid_size
     
