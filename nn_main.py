@@ -52,10 +52,10 @@ if __name__ == "__main__":
     # DATA_PATH = config['data']['path']
     EXPLAINABLE = config['integrated']
 
-    df= pd.read_csv("data/final/fd_df.csv")
+    df= pd.read_csv("data/final/fd_df.csv", nrows=1000000)
 
     df.drop_duplicates(inplace=True)
-    
+
     PID_loc= pd.read_csv("data/lookup/PID_location_all.csv")
 
     ecoregions=cval.process_ecoregion("data/Ecoregions/Ecoregions2017.shp")
@@ -73,6 +73,15 @@ if __name__ == "__main__":
         geometry=gpd.points_from_xy(df["lon"], df["lat"]),
         crs="EPSG:4326"  # WGS84
     )
+
+
+    grouped_df = gpd.sjoin(
+        gdf,
+        ecoregions,
+        how="left",          # keep all PIDs
+        predicate="within"   # point inside polygon
+    )
+    print(len(grouped_df['ECO_ID'].value_counts()))
 
 
     print('Data loaded')
@@ -149,7 +158,6 @@ if __name__ == "__main__":
         data = data.float()
         target = target.float()
         with torch.no_grad():
-            print('validation')
             data, target = data.float(), target.float()
             output = model(data)  # forward pass: compute predicted outputs by passing inputs to the model
             loss1 = criterion(output, target) # calculate the loss

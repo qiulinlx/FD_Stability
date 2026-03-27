@@ -64,7 +64,6 @@ def ecoregion_cross_validation(gdf, ecoregion, test_size, batch_size):
 
     # unique groups
     groups = grouped_df["ECO_ID"].unique()
-    print(groups)
     grouped_df = grouped_df.groupby("spatial_group").filter(lambda x: len(x) >= batch_size)
     # number to sample
     n_select = int(len(groups) * test_size)
