@@ -53,6 +53,9 @@ if __name__ == "__main__":
     EXPLAINABLE = config['integrated']
 
     df= pd.read_csv("data/final/fd_df.csv")
+
+    df.drop_duplicates(inplace=True)
+    
     PID_loc= pd.read_csv("data/lookup/PID_location_all.csv")
 
     ecoregions=cval.process_ecoregion("data/Ecoregions/Ecoregions2017.shp")
