@@ -52,7 +52,7 @@ if __name__ == "__main__":
     # DATA_PATH = config['data']['path']
     EXPLAINABLE = config['integrated']
 
-    df= pd.read_csv("data/final/fd_df.csv", nrows=1000000)
+    df= pd.read_csv("data/final/fd_df.csv")
 
     print(df.shape)
 
