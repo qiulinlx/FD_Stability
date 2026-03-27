@@ -172,7 +172,7 @@ if __name__ == "__main__":
 
     torch.save(model.state_dict(), 'model.pt')
 
-    # test_loss = 0.0
+    test_loss = 0.0
 
     # model.eval() # prep model for evaluation
     # for data, target in testloader:
