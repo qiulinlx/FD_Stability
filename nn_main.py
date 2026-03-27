@@ -195,16 +195,16 @@ if __name__ == "__main__":
 
     # print('the loss on the Test data is', test_loss)
 
-    # length= range(0, len(vloss))
-    # leng= range(0, len(tloss))
-    # tleng=range(0, len(testloss))
+    length= range(0, len(vloss))
+    leng= range(0, len(tloss))
+    tleng=range(0, len(testloss))
 
-    # plt.plot(length, vloss,  color="blue", label= "Validation loss")
-    # plt.plot(leng, tloss, color='red', label= 'Trainingloss')
-    # plt.plot(tleng, testloss, color='green', label= 'Test loss')
-    # plt.title( "Loss function over time")
-    # plt.legend()
-    # plt.savefig('training.png')
+    plt.plot(length, vloss,  color="blue", label= "Validation loss")
+    plt.plot(leng, tloss, color='red', label= 'Trainingloss')
+    plt.plot(tleng, testloss, color='green', label= 'Test loss')
+    plt.title( "Loss function over time")
+    plt.legend()
+    plt.savefig('training.png')
 
     # plt.plot(N_EPOCHS,lrs, color='black', label= 'learning rate')
     # plt.savefig('idk,png')
