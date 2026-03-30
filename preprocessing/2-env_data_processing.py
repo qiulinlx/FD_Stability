@@ -1,5 +1,5 @@
 import pandas as pd
-import generate_metrics as gm
+import FD_Stability.utils.generate_metrics as gm
 import pyarrow as pa
 import pyarrow.ipc as ipc
 import os 
@@ -9,6 +9,8 @@ from utils.data_utils import merge_files
 from pathlib import Path
 
 '''
+
+RUN PROCESS ARROW FIRST
 We run this to:
     pull data from the Composite file
     load in the FIA data 
@@ -83,7 +85,7 @@ if __name__ == "__main__":
         sd_df=gm.generate_species_diversity_metrics(pivot)
 
         # Merging FD and Environmental Data ------------------------------------------------
-        total_df = fd_df.merge(env_df, on='PID', how='inner').merge(sd_df, on='PID', how='inner')
+        total_df = fd_df.merge(env_df, on='PID', how='inner').merge(sd_df, on='PID', how='inner').merge(fd_df, on='PID', how='inner')
         
         # total_df = total_df.merge(rs_df, on='PID', how='inner')
 

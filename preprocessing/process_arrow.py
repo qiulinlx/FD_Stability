@@ -5,7 +5,7 @@ import os
 import numpy as np
 import warnings
 
-warnings.simplefilter(action='ignore', category=pd.errors.SettingWithCopyWarning)
+# warnings.simplefilter(action='ignore', category=pd.errors.SettingWithCopyWarning)
 
 def load_arrow(filename: str) -> pd.DataFrame:
     with pa.memory_map(filename, "r") as source:

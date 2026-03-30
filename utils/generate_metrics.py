@@ -5,7 +5,7 @@ import utils.fdiv as fd
 import warnings
 import utils.sdiv as sd
 
-warnings.simplefilter(action='ignore', category=pd.errors.SettingWithCopyWarning)
+# warnings.simplefilter(action='ignore', category=pd.errors.SettingWithCopyWarning)
 
 def generate_functional_diversity_metrics(df:pd.DataFrame, traits:pd.DataFrame)->pd.DataFrame:
     species= df.columns.tolist()
