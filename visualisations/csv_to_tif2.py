@@ -16,6 +16,15 @@ CRS = "EPSG:4326"     # WGS84 (same as lon/lat)
 # Load CSV
 df = pd.read_csv(CSV_PATH)
 
+df.dropna(subset=["PID", "lon", "lat"], inplace=True)
+df.drop_duplicates(subset=["PID"], inplace=True)
+
+# encode PID
+df["PID_code"] = df["PID"].astype("category").cat.codes
+
+# save lookup table
+df[["PID", "PID_code"]].drop_duplicates().to_csv("PID_lookup.csv", index=False)
+
 # Convert to GeoDataFrame
 gdf = gpd.GeoDataFrame(
     df,
