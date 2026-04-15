@@ -99,7 +99,6 @@ def compute_acf_lags(group, npp_col="Npp", max_lag=3):
 
 
 def cleaning(PID_df, csc_df, npp_df):
-    npp_df.drop(columns=(['Unnamed: 0']), inplace=True)
 
     PID_df["managed"] = PID_df["managed"].fillna(-1)
     PID_df["ownership"] = PID_df["ownership"].fillna("No Data")
@@ -109,7 +108,6 @@ def cleaning(PID_df, csc_df, npp_df):
         PID_df = PID_df[PID_df["lat"] > 22]
 
     csc_df.rename(columns={'PID_left': "PID"}, inplace= True)
-    csc_df.drop(columns=['Unnamed: 0'], inplace=True)
 
     csc_df=csc_df.merge(PID_df, on='PID', how='inner')
 

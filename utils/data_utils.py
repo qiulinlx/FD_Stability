@@ -9,6 +9,7 @@ from sklearn.preprocessing import LabelEncoder
 import matplotlib.pyplot as plt
 import os
 from pathlib import Path
+import shutil
 
 def merge_files(csv_dir, out_file):
 
@@ -24,8 +25,9 @@ def merge_files(csv_dir, out_file):
     stacked = pd.concat(dfs, ignore_index=True)
 
     stacked.to_parquet(out_file, engine="pyarrow", compression="snappy")
-    os.remove(csv_dir) 
+    shutil.rmtree(csv_dir)  
 
+    
 def data_preprocessing(df, npp_df, csc_df):
     """
     Cleaning and merging datasets for ML models

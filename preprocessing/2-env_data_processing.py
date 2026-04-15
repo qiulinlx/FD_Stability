@@ -78,6 +78,10 @@ if __name__ == "__main__":
 
         print((f"Processing {file}"))
 
+        table = table[table['goodDesign'].isin([1.0, 311.0, 312.0])]
+        table = table[table['status'].isin(['live'])]
+        table = table[table['cdMult'].isin([0.0])]
+
         pivot = pd.crosstab(table["PID"], table["accepted_bin"])
 
         pivot.columns.name = None       # remove the "Type" name
@@ -90,23 +94,13 @@ if __name__ == "__main__":
         sd_df=gm.generate_species_diversity_metrics(pivot)
 
         # Merging FD and Environmental Data ------------------------------------------------
-        total_df = fd_df.merge(env_df, on='PID', how='inner').merge(sd_df, on='PID', how='inner').merge(fd_df, on='PID', how='inner')
-        
-        total_df = total_df[total_df['goodDesign'].isin([1.0, 311.0, 312.0])]
-        total_df = total_df[total_df['status'].isin(['live'])]
-        total_df = total_df[total_df['cdMult'].isin([0.0])]
-
-        total_df = (
-            total_df.sort_values(by='lastYear', ascending=False)  # True first
-            .drop_duplicates(subset='PID', keep='first')
-        )
+        total_df = fd_df.merge(env_df, on='PID', how='inner').merge(sd_df, on='PID', how='inner')
 
         total_df = total_df.loc[:, total_df.isna().sum() <= 50000]
 
-        total_df.to_parquet('cleaned_fia.parquet')
         total_df.to_csv(f'data/.joined/dataset{i}.csv', index=False)
         i+=1
 
     csv_dir = Path("data/.joined")
-    out_file = "dataset.parquet"
+    out_file = "dataset1.parquet"
     merge_files(csv_dir, out_file)
