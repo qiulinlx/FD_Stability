@@ -1,12 +1,15 @@
 import pandas as pd
-import FD_Stability.utils.generate_metrics as gm
 import pyarrow as pa
 import pyarrow.ipc as ipc
 import os 
 import warnings
-from process_arrow import load_arrow
-from utils.data_utils import merge_files
+from preprocessing.process_arrow import load_arrow
 from pathlib import Path
+import utils.generate_metrics as gm
+from utils.data_utils import merge_files
+import warnings
+
+warnings.filterwarnings("ignore")
 
 '''
 
@@ -19,7 +22,6 @@ We run this to:
 
 '''
 
-warnings.simplefilter(action='ignore', category=pd.errors.SettingWithCopyWarning)
 
 if __name__ == "__main__":
 
@@ -36,7 +38,9 @@ if __name__ == "__main__":
     "EarthEnvTopoMed_Northness"
     ]
 
-    env_df= pd.read_csv('data/Composite.csv')
+    os.makedirs("data/.joined", exist_ok=True)
+
+    env_df= pd.read_csv('data/raw/Composite.csv')
     PID_df=pd.read_csv('data/lookup/PID_location_all.csv')
     traits=pd.read_csv("data/lookup/traitMatrix.csv")
 
@@ -44,6 +48,7 @@ if __name__ == "__main__":
     PID_df["ownership"] = PID_df["ownership"].fillna("No Data")
     PID_df["biome"] = PID_df["biome"].fillna("No Data")
 
+    PID_df.drop_duplicates(subset=['PID'], inplace=True)
 
     # Preparing Composite Data ------------------------------------------------
 
@@ -87,8 +92,18 @@ if __name__ == "__main__":
         # Merging FD and Environmental Data ------------------------------------------------
         total_df = fd_df.merge(env_df, on='PID', how='inner').merge(sd_df, on='PID', how='inner').merge(fd_df, on='PID', how='inner')
         
-        # total_df = total_df.merge(rs_df, on='PID', how='inner')
+        total_df = total_df[total_df['goodDesign'].isin([1.0, 311.0, 312.0])]
+        total_df = total_df[total_df['status'].isin(['live'])]
+        total_df = total_df[total_df['cdMult'].isin([0.0])]
 
+        total_df = (
+            total_df.sort_values(by='lastYear', ascending=False)  # True first
+            .drop_duplicates(subset='PID', keep='first')
+        )
+
+        total_df = total_df.loc[:, total_df.isna().sum() <= 50000]
+
+        total_df.to_parquet('cleaned_fia.parquet')
         total_df.to_csv(f'data/.joined/dataset{i}.csv', index=False)
         i+=1
 
