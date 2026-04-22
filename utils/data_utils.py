@@ -63,13 +63,17 @@ def data_preprocessing(df, npp_df, csc_df):
     return sd_df, fd_df
 
 
-def evaluate_rf(X_test, y_test, regr, feature_names: list, importance: bool, div_type: str):
+def evaluate_rf(X_test, y_test, regr, feature_names: list, importance: bool, div_type: str, biome: str = None, color=None):
 
     y_pred = regr.predict(X_test)
 
     mae = mean_absolute_error(y_test, y_pred, multioutput='raw_values')
 
     r2 = r2_score(y_test, y_pred, multioutput='raw_values')
+
+    r2_str = ", ".join(f"{x:.3f}" for x in np.atleast_1d(r2))
+    mae_str = ", ".join(f"{x:.3f}" for x in np.atleast_1d(mae))
+
     if importance: 
         importances = regr.feature_importances_
 
@@ -97,27 +101,32 @@ def evaluate_rf(X_test, y_test, regr, feature_names: list, importance: bool, div
         }])
 
         feature_imp_df = pd.concat([feature_imp_df, new_row], ignore_index=True)
-
-                
         
         feature_imp_df = feature_imp_df.sort_values('Gini Importance', ascending=False)
-
         plt.figure(figsize=(20, 10))
 
         plt.barh(
             feature_imp_df['Feature'],
-            feature_imp_df['Gini Importance']
+            feature_imp_df['Gini Importance'], color=color
         )
 
         plt.xlabel('Gini Importance')
-        plt.title('Feature Importance - Gini Importance')
+        plt.title(f'Feature Importance - Gini Importance for{biome} - {div_type} Diversity')
 
         # Most important at the top
         plt.gca().invert_yaxis()
 
-        plt.savefig(f'results/rf_importances{np.random.randint(1,100)}.png')
+        plt.text(
+        0.95, 0.05,
+         f"{a}: R² = {r2_str} | MAE = {mae_str}",
+        transform=plt.gca().transAxes,
+        fontsize=12,
+        verticalalignment='bottom',
+        horizontalalignment='right',
+        bbox=dict(boxstyle="round", facecolor="white", alpha=0.8)
+        )
 
-    with open("results/experiments.txt", "a") as f:
-        f.write(f" {a}:  \n R2 output: {r2}, MAE output: {mae} \n")
-csv_dir = Path("data/.joined")
-out_file = "dataset.parquet"
+        plt.savefig(f'results/rf_importances{np.random.randint(1,100)}_{biome}.png')
+        plt.close()
+
+        return feature_imp_df

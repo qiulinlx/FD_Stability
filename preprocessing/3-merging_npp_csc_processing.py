@@ -16,6 +16,8 @@ df = pd.read_parquet("data/processed/dataset1.parquet")
 
 PID_df, csc_df, npp_df = af.cleaning(PID_df, csc_df, npp_df)
 
+csc_df.drop_duplicates(subset=['PID'], inplace=True)
+
 npp_df.rename(columns={'NPP_kgC_m2_yr': "Npp"}, inplace=True)
 
 grouped = npp_df.groupby('PID').apply(lambda x: x.sort_values('year')['Npp'].to_numpy())
@@ -49,5 +51,5 @@ sd_df.drop_duplicates(subset=['PID'], inplace=True)
 
 fd_df.drop_duplicates(inplace=True)
 sd_df.drop_duplicates(inplace=True)
-sd_df.to_csv('sd_df.csv', index=False)
-fd_df.to_csv('fd_df.csv', index=False)
+sd_df.to_csv('data/processed/sd_df.csv', index=False)
+fd_df.to_csv('data/processed/fd_df.csv', index=False)

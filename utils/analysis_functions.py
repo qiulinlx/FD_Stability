@@ -16,6 +16,24 @@ forest_colors = {
     'No Data': 'gray'
 }
 
+
+biome_mapping = {
+    0: 'Boreal forests or taiga',
+    1: 'Flooded grasslands',
+    2: 'Mangroves',
+    3: 'Mediterranean woodlands',
+    4: 'Temperate broadleaf forests',
+    5: 'Temperate conifer forests',
+    6: 'Temperate grasslands',
+    7: 'Tropical coniferous forests',
+    8: 'Tropical dry broadleaf forests',
+    9: 'Tropical grasslands',
+    10: 'Tropical moist broadleaf forests',
+    11: 'Tundra',
+    12: 'Xeric shrublands',
+    13: np.nan
+}
+
 managed= {
     1.0: 'blue',
     0.0: 'red',
