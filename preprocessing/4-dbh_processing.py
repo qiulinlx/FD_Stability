@@ -29,19 +29,28 @@ def gini_coefficient(dbh_values):
 
 PID_df=pd.read_csv('data/lookup/PID_location_all.csv')
 
+PID_df.dropna(subset=['DIA'],inplace=True)
+PID_df = PID_df[PID_df['DIA'] != 0]
+
+pid_df = PID_df.groupby('PID')['DIA'].apply(list).reset_index()
+pid_df.columns = ['PID', 'DIA']
+
+pid_df = pid_df[pid_df['DIA'].apply(len) >= 2]
+
 gc=[]
+pid=[]
 
-Pids=list(set(PID_df['PID']))
-
-for pid in Pids.copy():
-    plot=PID_df.loc[PID_df['PID'] == pid]
-    dbh_values=plot['DIA'].values
-
-    if len(dbh_values) > 2:
-        gini=gini_coefficient(dbh_values)
+i=0
+for idx, row in pid_df.iterrows():
+    
+    dbh = np.array(row['DIA'])    
+    if len(dbh) > 2:
+        gini= gini_coefficient(dbh)
         gc.append(gini)
+        pid.append(row['PID'])
+        i+=1
     else: 
-        Pids.remove(pid)
+        print('did not compute')
 
-df=pd.DataFrame({'PID':Pids,'GC':gc})
+df=pd.DataFrame({'PID':pid,'GC':gc})
 df.to_csv('data/processed/PID_GCDBH.csv',index=False)
