@@ -71,6 +71,12 @@ def evaluate_rf(X_test, y_test, regr, feature_names: list, importance: bool, div
 
     r2 = r2_score(y_test, y_pred, multioutput='raw_values')
 
+    metric_df = pd.DataFrame({
+    "metric": ["r2", "mae"],
+    "npp": [r2[0], mae[0]],
+    "gc":  [r2[1], mae[1]]
+})
+
     r2_str = ", ".join(f"{x:.3f}" for x in np.atleast_1d(r2))
     mae_str = ", ".join(f"{x:.3f}" for x in np.atleast_1d(mae))
 
@@ -129,4 +135,4 @@ def evaluate_rf(X_test, y_test, regr, feature_names: list, importance: bool, div
         plt.savefig(f'results/rf_importances{np.random.randint(1,100)}_{biome}.png')
         plt.close()
 
-        return feature_imp_df
+        return feature_imp_df, metric_df
