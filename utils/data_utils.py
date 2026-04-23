@@ -86,53 +86,58 @@ def evaluate_rf(X_test, y_test, regr, feature_names: list, importance: bool, div
         if div_type == "f":
             f_list= ['Raos_Q', 'Functional_Evenness', "Mean Pairwise D"]
             a= 'Functional Diversity'
+
+        elif div_type == "comb":
+            f_list= ['Raos_Q', 'Functional_Evenness', "Mean Pairwise D"]
+            a= 'Functional Diversity'
+
         else:
             f_list=['Species Richness', 'Shannon Diversity', "Simpson's Index"]
             a='Species Diversity'
 
         feature_imp_df = pd.DataFrame({'Feature': feature_names, 'Gini Importance': importances})
         
-        mask = feature_imp_df['Feature'].isin(f_list)
+        # mask = feature_imp_df['Feature'].isin(f_list)
 
-        # Sum their importance
-        group_sum = feature_imp_df.loc[mask, 'Gini Importance'].sum()
+        # # Sum their importance
+        # group_sum = feature_imp_df.loc[mask, 'Gini Importance'].sum()
 
-        # Remove those rows
-        feature_imp_df = feature_imp_df.loc[~mask]
+        # # Remove those rows
+        # feature_imp_df = feature_imp_df.loc[~mask]
 
-        # Add new aggregated row
-        new_row = pd.DataFrame([{
-            'Feature': a,  # your new grouped feature name
-            'Gini Importance': group_sum
-        }])
+        # # Add new aggregated row
+        # new_row = pd.DataFrame([{
+        #     'Feature': a,  # your new grouped feature name
+        #     'Gini Importance': group_sum
+        # }])
 
-        feature_imp_df = pd.concat([feature_imp_df, new_row], ignore_index=True)
+        # feature_imp_df = pd.concat([feature_imp_df, new_row], ignore_index=True)
         
         feature_imp_df = feature_imp_df.sort_values('Gini Importance', ascending=False)
-        plt.figure(figsize=(20, 10))
+        # plt.figure(figsize=(20, 10))
 
-        plt.barh(
-            feature_imp_df['Feature'],
-            feature_imp_df['Gini Importance'], color=color
-        )
+        # plt.barh(
+        #     feature_imp_df['Feature'],
+        #     feature_imp_df['Gini Importance'], color=color
+        # )
 
-        plt.xlabel('Gini Importance')
-        plt.title(f'Feature Importance - Gini Importance for{biome} - {div_type} Diversity')
+        # plt.xlabel('Gini Importance')
+        # plt.title(f'Feature Importance - Gini Importance for{biome} - {div_type} Diversity')
 
-        # Most important at the top
-        plt.gca().invert_yaxis()
+        # # Most important at the top
+        # plt.gca().invert_yaxis()
 
-        plt.text(
-        0.95, 0.05,
-         f"{a}: R² = {r2_str} | MAE = {mae_str}",
-        transform=plt.gca().transAxes,
-        fontsize=12,
-        verticalalignment='bottom',
-        horizontalalignment='right',
-        bbox=dict(boxstyle="round", facecolor="white", alpha=0.8)
-        )
+        # plt.text(
+        # 0.95, 0.05,
+        #  f"{a}: R² = {r2_str} | MAE = {mae_str}",
+        # transform=plt.gca().transAxes,
+        # fontsize=12,
+        # verticalalignment='bottom',
+        # horizontalalignment='right',
+        # bbox=dict(boxstyle="round", facecolor="white", alpha=0.8)
+        # )
 
-        plt.savefig(f'results/rf_importances{np.random.randint(1,100)}_{biome}.png')
-        plt.close()
+        # plt.savefig(f'results/rf_importances{np.random.randint(1,100)}_{biome}.png')
+        # plt.close()
 
         return feature_imp_df, metric_df

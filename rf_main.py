@@ -63,10 +63,11 @@ def experiment (b_list, biome_dfs, random_key, test_size, div_type):
         X_train, y_train, X_test, y_test = train_test_split(sub_df, random_key, test_size)
         fd_reg = RandomForestRegressor(random_state=RANDOM_KEY, n_jobs=2)
         fd_reg.fit(X_train, y_train)
+
         fimp_df, metric_df = evaluate_rf(X_test, y_test, fd_reg,
                      feature_names=X_train.columns, 
                      importance= True, 
-                     div_type= 's', 
+                     div_type= div_type, 
                      biome=biome_name,
                      color=color)
         
@@ -89,7 +90,7 @@ if __name__ == "__main__":
     TEST_SIZE = 0.4
     RANDOM_KEY = 21
     BATCH_SIZE=16
-    diversity_type = "species" #"functional "
+    diversity_type = "species" #"functional " "species" "combined"
 
     biome_mapping = {
         0: 'Boreal and Tundra forests',
@@ -108,12 +109,14 @@ if __name__ == "__main__":
         13: np.nan
     }
 
-
-    if diversity_type == "functional":
-        df_name = "fd_df_gc.csv"
+    if diversity_type == "combined":
+        df_name = "data/final/combined_df_gc.csv"
+        div_type = "comb"
+    elif diversity_type == "functional":
+        df_name = "data/final/fd_df_gc.csv"
         div_type = "f"
-    else:    
-        df_name = "sd_df_gc.csv"
+    else:
+        df_name = "data/final/sd_df_gc.csv"
         div_type = "s"
 
     df= pd.read_csv(df_name)
@@ -163,12 +166,19 @@ if __name__ == "__main__":
     m_df1=scores["t1"]
     m_df2=scores["t2"]
 
-    if diversity_type == "functional":
-        f_df_name= "feature_importance_results_fd.csv"
-        m_df_name= "model_results_fd.csv"
+    if diversity_type == "combined":
+        f_df_name= "results/feature_importance_results_combined.csv"
+        m_df_name= "results/model_results_combined.csv"
+
+    elif diversity_type == "functional":
+        f_df_name= "results/feature_importance_results_fd.csv"
+        m_df_name= "results/model_results_fd.csv"
+
     else:
-        f_df_name= "feature_importance_results_sd.csv"
-        m_df_name= "model_results_sd.csv"
+        f_df_name= "results/feature_importance_results_sd.csv"
+        m_df_name= "results/model_results_sd.csv"
 
     pd.concat([df1, df2], ignore_index=True).to_csv(f_df_name, index=False)
     pd.concat([m_df1, m_df2], ignore_index=True).to_csv(m_df_name, index=False)
+
+
