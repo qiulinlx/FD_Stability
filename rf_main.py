@@ -23,7 +23,7 @@ List of biomes: ['Boreal and Tundra forests',
 def train_test_split(sub_df, random_key, test_size):
     sub_df.drop(columns=['BHAGE', 'managed',
         'ownership', 'biome', 'geometry', 'index_right', 'lat', 'lon', 'DIA',
-        'lon_bin', 'lat_bin'], inplace=True)
+        'lon_bin', 'lat_bin', 'GC'], inplace=True)
 
     sets=list(set(sub_df['ECO_NAME']))
 
@@ -32,13 +32,13 @@ def train_test_split(sub_df, random_key, test_size):
     test = sub_df[sub_df["ECO_NAME"].isin(test_set)]
     train = sub_df[~sub_df["ECO_NAME"].isin(test_set)]
 
-    y=['transformed npp', 'GC'] 
+    y=['transformed npp'] 
 
     X_train=train.drop(columns=y+['PID', 'spatial_group', 'ECO_NAME'])
-    y_train = np.column_stack([train['transformed npp'], train['GC']])
+    y_train = train['transformed npp'].values
 
     X_test= test.drop(columns=y+['PID', 'spatial_group', 'ECO_NAME'])
-    y_test = np.column_stack([test['transformed npp'], test['GC']])
+    y_test = test['transformed npp'].values
 
     return X_train, y_train, X_test, y_test
 
@@ -60,22 +60,34 @@ def experiment (b_list, biome_dfs, random_key, test_size, div_type):
         color = sub_df["biome"].map(biome_cmap)
         biome_name = i
         print(biome_name)
-        X_train, y_train, X_test, y_test = train_test_split(sub_df, random_key, test_size)
-        fd_reg = RandomForestRegressor(random_state=RANDOM_KEY, n_jobs=2)
-        fd_reg.fit(X_train, y_train)
-
-        fimp_df, metric_df = evaluate_rf(X_test, y_test, fd_reg,
-                     feature_names=X_train.columns, 
-                     importance= True, 
-                     div_type= div_type, 
-                     biome=biome_name,
-                     color=color)
         
-        fimp_df["biome"] = biome_name
-        metric_df["biome"] = biome_name
+        threshold = sub_df['GC'].median()  # You can choose any threshold based on your needs
 
-        Feature_importance_df = pd.concat([Feature_importance_df, fimp_df], ignore_index=True)
-        Performance_df = pd.concat([Performance_df, metric_df], ignore_index=True)
+        df_upper = sub_df[sub_df['GC'] >= threshold]
+        df_lower = sub_df[sub_df['GC'] < threshold]
+
+        dict_df={"upper_GC": df_upper, "lower_GC": df_lower}
+
+        for key, sub_df in dict_df.items():
+
+            X_train, y_train, X_test, y_test = train_test_split(sub_df, random_key, test_size)
+            fd_reg = RandomForestRegressor(random_state=RANDOM_KEY, n_jobs=2)
+            fd_reg.fit(X_train, y_train)
+
+            fimp_df, metric_df = evaluate_rf(X_test, y_test, fd_reg,
+                        feature_names=X_train.columns, 
+                        div_type= div_type, 
+                        biome=biome_name,
+                        color=color)
+            
+            fimp_df["biome"] = biome_name
+            metric_df["biome"] = biome_name
+
+            fimp_df["gc_stratify"] = key
+            metric_df["gc_stratify"] = key
+
+            Feature_importance_df = pd.concat([Feature_importance_df, fimp_df], ignore_index=True)
+            Performance_df = pd.concat([Performance_df, metric_df], ignore_index=True)
 
     return Feature_importance_df, Performance_df
 
