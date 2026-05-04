@@ -10,9 +10,9 @@ We run this file to get cleaned datasets for modelling
 
 PID_df=pd.read_csv('data/lookup/PID_location_all.csv')
 csc_df= pd.read_csv('data/processed/PID_location_WSCI.csv')
+DBH_df=pd.read_csv('data/processed/PID_GCDBH.csv')
 npp_df=pd.read_csv('data/processed/PID_npp.csv')
-df = pd.read_parquet("data/processed/dataset1.parquet")
-
+df = pd.read_parquet("data/processed/dataset.parquet")
 
 PID_df, csc_df, npp_df = af.cleaning(PID_df, csc_df, npp_df)
 
@@ -45,11 +45,13 @@ npp_df = pd.DataFrame({'PID': PID_list, 'transformed npp': volatility})
 
 sd_df, fd_df=data_preprocessing(df, npp_df, csc_df)
 
+sd_df=sd_df.merge(DBH_df, on='PID', how='inner')
+fd_df=fd_df.merge(DBH_df, on='PID', how='inner')
+
 fd_df.drop_duplicates(subset=['PID'], inplace=True)
 sd_df.drop_duplicates(subset=['PID'], inplace=True)
 
-
 fd_df.drop_duplicates(inplace=True)
 sd_df.drop_duplicates(inplace=True)
-sd_df.to_csv('data/processed/sd_df.csv', index=False)
-fd_df.to_csv('data/processed/fd_df.csv', index=False)
+sd_df.to_csv('data/final/sd_df.csv', index=False)
+fd_df.to_csv('data/final/fd_df.csv', index=False)

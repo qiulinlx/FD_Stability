@@ -61,33 +61,22 @@ def experiment (b_list, biome_dfs, random_key, test_size, div_type):
         biome_name = i
         print(biome_name)
         
-        threshold = sub_df['GC'].median()  # You can choose any threshold based on your needs
 
-        df_upper = sub_df[sub_df['GC'] >= threshold]
-        df_lower = sub_df[sub_df['GC'] < threshold]
+        X_train, y_train, X_test, y_test = train_test_split(sub_df, random_key, test_size)
+        fd_reg = RandomForestRegressor(random_state=RANDOM_KEY, n_jobs=2)
+        fd_reg.fit(X_train, y_train)
 
-        dict_df={"upper_GC": df_upper, "lower_GC": df_lower}
+        fimp_df, metric_df = evaluate_rf(X_test, y_test, fd_reg,
+                    feature_names=X_train.columns, 
+                    div_type= div_type, 
+                    biome=biome_name,
+                    color=color)
+        
+        fimp_df["biome"] = biome_name
+        metric_df["biome"] = biome_name
 
-        for key, sub_df in dict_df.items():
-
-            X_train, y_train, X_test, y_test = train_test_split(sub_df, random_key, test_size)
-            fd_reg = RandomForestRegressor(random_state=RANDOM_KEY, n_jobs=2)
-            fd_reg.fit(X_train, y_train)
-
-            fimp_df, metric_df = evaluate_rf(X_test, y_test, fd_reg,
-                        feature_names=X_train.columns, 
-                        div_type= div_type, 
-                        biome=biome_name,
-                        color=color)
-            
-            fimp_df["biome"] = biome_name
-            metric_df["biome"] = biome_name
-
-            fimp_df["gc_stratify"] = key
-            metric_df["gc_stratify"] = key
-
-            Feature_importance_df = pd.concat([Feature_importance_df, fimp_df], ignore_index=True)
-            Performance_df = pd.concat([Performance_df, metric_df], ignore_index=True)
+        Feature_importance_df = pd.concat([Feature_importance_df, fimp_df], ignore_index=True)
+        Performance_df = pd.concat([Performance_df, metric_df], ignore_index=True)
 
     return Feature_importance_df, Performance_df
 
@@ -102,7 +91,7 @@ if __name__ == "__main__":
     TEST_SIZE = 0.4
     RANDOM_KEY = 21
     BATCH_SIZE=16
-    diversity_type = "species" #"functional " "species" "combined"
+    diversity_type = "functional" #"functional " "species" "combined"
 
     biome_mapping = {
         0: 'Boreal and Tundra forests',
@@ -122,16 +111,20 @@ if __name__ == "__main__":
     }
 
     if diversity_type == "combined":
-        df_name = "data/final/combined_df_gc.csv"
+        df_name = "data/final/combined_df.csv"
         div_type = "comb"
     elif diversity_type == "functional":
-        df_name = "data/final/fd_df_gc.csv"
+        df_name = "data/final/fd_df.csv"
         div_type = "f"
     else:
-        df_name = "data/final/sd_df_gc.csv"
+        df_name = "data/final/sd_df.csv"
         div_type = "s"
 
     df= pd.read_csv(df_name)
+
+    df = df.loc[:, ~df.columns.str.contains(r'\.1')]
+
+    df.dropna(subset=['TPA_UNADJ'], inplace=True) # Maybe exclude
 
     ecoregions=cval.process_ecoregion("data/Ecoregions/Ecoregions2017.shp")
 

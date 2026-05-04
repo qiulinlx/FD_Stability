@@ -47,7 +47,7 @@ def data_preprocessing(df, npp_df, csc_df):
     df['ownership'] = le.fit_transform(df['ownership'])
 
     fd_df=df.copy()
-    fd_df.drop(columns=['Species Richness', 'Shannon Diversity', "Simpson's Index", "Shannon Equitabiltiy Index", "source_file",  "Functional_Dispersion", "Functional_Divergences"], inplace=True)
+    fd_df.drop(columns=[ 'Shannon Diversity', "Simpson's Index", "Shannon Equitabiltiy Index", "source_file",  "Functional_Dispersion", "Functional_Divergences"], inplace=True)
     fd_df=fd_df.merge(y_df, on='PID', how='inner')
 
     fd_df = fd_df.drop(columns=[col for col in fd_df.columns if "_y" in col])
