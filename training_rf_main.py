@@ -13,6 +13,28 @@ import shap
 import numpy as np
 from sklearn.inspection import partial_dependence
 
+def hyperparameter_tuning(df, RANDOM_KEY):
+    X_train, y_train, _, _ = mu.data_preprocessing(df, RANDOM_KEY)
+    model=RandomForestRegressor(
+            random_state=RANDOM_KEY)
+
+    search = RandomizedSearchCV(
+            model,
+            param_distributions=param_grid,
+            n_iter=10,           # number of random combinations to try
+            cv=4,                 # 5-fold cross validation
+            scoring='r2',         # or 'neg_mean_squared_error'
+            n_jobs=4,            # use all cores
+            verbose=2,
+            random_state=RANDOM_KEY
+        )
+    
+    search.fit(X_train, y_train)
+
+    model = search.best_estimator_
+    model__hyperparam_df = pd.DataFrame(search.cv_results_)
+
+    return model, model__hyperparam_df
 
 
 if __name__ == "__main__":

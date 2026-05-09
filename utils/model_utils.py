@@ -10,7 +10,10 @@ ecoregions=ecoregions[['ECO_NAME', 'geometry']]
 def data_preprocessing (df, random_key=42):
     #Preprocessing the data for Random forest regression
 
-    df = df[~df['biome'].isin([13, 1, 2, 3])]
+    # df = df[~df['biome'].isin([13, 1, 2, 3])]
+
+    df = df[df['biome'].isin([4,5,6,12])]
+
 
     # df["biome"] = df["biome"].replace(biome_mapping)
 
@@ -28,10 +31,29 @@ def data_preprocessing (df, random_key=42):
     return X_train, y_train, X_test, y_test
 
 
+def data_processing_v2(df, biome_mapping):
+     
+    # df = df[df['biome'].isin([4,5,6,12])]
+
+    df["biome"] = df["biome"].replace(biome_mapping)
+
+    df=cval.assign_spatial_groups(df, grid_size=1.0)
+
+    gdf = gpd.GeoDataFrame(
+        df,
+        geometry=gpd.points_from_xy(df["lon"], df["lat"]),
+        crs="EPSG:4326"  # WGS84
+    )
+
+    joined = gpd.sjoin(gdf, ecoregions, how="left", predicate="within")
+
+    biome_dfs = {k: v for k, v in joined.groupby('biome')}
+    return biome_dfs
+
 def train_test_split(sub_df, random_key):
     sub_df = sub_df.drop(columns=['BHAGE', 'managed', 'ownership', 'geometry', 
                                    'index_right', 'lat', 'lon', 'DIA',
-                                   'lon_bin', 'lat_bin', 'GC'])
+                                   'lon_bin', 'lat_bin'])
     
     sets = list(set(sub_df['ECO_NAME']))
     set_b = list(set(sub_df['biome']))
