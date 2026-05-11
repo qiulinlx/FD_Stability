@@ -3,7 +3,7 @@ import pyarrow as pa
 import pyarrow.ipc as ipc
 import os 
 import warnings
-from FD_Stability.preprocessing.process_arrow import load_arrow
+from   preprocessing.process_arrow import load_arrow
 from pathlib import Path
 import utils.generate_metrics as gm
 from utils.data_utils import merge_files
@@ -78,7 +78,7 @@ if __name__ == "__main__":
 
         print((f"Processing {file}"))
         print(table["PID"].nunique())
-        table = table[table['goodDesign'].isin([1.0, 311.0, 312.0])]
+        table = table[table['DESIGNCD'].isin([1, 111, 112, 113, 116, 117, 311, 312, 501, 502, 503, 504, 505, 506])]
         table = table[table['status'].isin(['live'])]
         table = table[table['cdMult'].isin([0.0])]
         print(table["PID"].nunique())

@@ -71,4 +71,4 @@ Export.table.toDrive({
   folder: 'GEE_exports',           // optional: specify a Drive folder
   fileFormat: 'CSV',
   selectors: ['PID', 'lat', 'lon', 'year', 'NPP_kgC_m2_yr']
-}); 
+});
