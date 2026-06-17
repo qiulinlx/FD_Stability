@@ -3,10 +3,10 @@ import pyarrow as pa
 import pyarrow.ipc as ipc
 import os 
 import warnings
-from   preprocessing.process_arrow import load_arrow
+from FD_Stability.preprocessing.process_arrow import load_arrow
 from pathlib import Path
-import utils.generate_metrics as gm
-from utils.data_utils import merge_files
+import FD_Stability.utils.generate_metrics as gm
+from FD_Stability.utils.data_utils import merge_files
 import warnings
 
 warnings.filterwarnings("ignore")
@@ -42,7 +42,7 @@ if __name__ == "__main__":
 
     env_df= pd.read_csv('data/raw/Composite.csv')
     PID_df=pd.read_csv('data/lookup/PID_location_all.csv')
-    traits=pd.read_csv("data/lookup/traitMatrix.csv")
+    traits=pd.read_csv("data/lookup/traitMatrix1.csv")
 
     PID_df["managed"] = PID_df["managed"].fillna(-1)
     PID_df["ownership"] = PID_df["ownership"].fillna("No Data")

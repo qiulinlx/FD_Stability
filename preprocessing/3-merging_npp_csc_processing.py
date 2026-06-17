@@ -1,18 +1,20 @@
 import pandas as pd
 import numpy as np
-import utils.analysis_functions as af
+import FD_Stability.utils.analysis_functions as af
 from scipy.signal import detrend
-from utils.data_utils import data_preprocessing
+from FD_Stability.utils.data_utils import data_preprocessing
+from sklearn.preprocessing import LabelEncoder
+
 
 '''
 We run this file to get cleaned datasets for modelling
 '''
 
 PID_df=pd.read_csv('data/lookup/PID_location_all.csv')
-csc_df= pd.read_csv('data/processed/PID_location_WSCI.csv')
+csc_df= pd.read_csv('data/WSCI/PID_location_WSCI.csv')
 DBH_df=pd.read_csv('data/processed/PID_GCDBH.csv')
 npp_df=pd.read_csv('data/processed/PID_npp.csv')
-df = pd.read_parquet("data/processed/dataset.parquet")
+df = pd.read_parquet("data/final/dataset.parquet")
 
 PID_df, csc_df, npp_df = af.cleaning(PID_df, csc_df, npp_df)
 
@@ -37,21 +39,14 @@ for pid, arr in grouped.items():
 
 npp_df = pd.DataFrame({'PID': PID_list, 'transformed npp': volatility})
 
-# csc_df['csc'] = (csc_df['csc']-min(csc_df['csc']))/(max(csc_df['csc'])-min(csc_df['csc']))
-# csc_df["BHAGE"] = csc_df["BHAGE"].fillna("0.0")
-# csc_df=csc_df[['PID', 'csc']]
+y_df=npp_df.merge(csc_df,  on='PID', how='inner')
 
-# y=['transformed npp', 'csc'] 
+le = LabelEncoder()
+df['biome'] = le.fit_transform(df['biome'])
 
-sd_df, fd_df=data_preprocessing(df, npp_df, csc_df)
+le = LabelEncoder()
+df['ownership'] = le.fit_transform(df['ownership'])
+df.drop(columns=["source_file"], inplace=True)
+df=df.merge(y_df, on='PID', how='inner')
 
-sd_df=sd_df.merge(DBH_df, on='PID', how='inner')
-fd_df=fd_df.merge(DBH_df, on='PID', how='inner')
-
-fd_df.drop_duplicates(subset=['PID'], inplace=True)
-sd_df.drop_duplicates(subset=['PID'], inplace=True)
-
-fd_df.drop_duplicates(inplace=True)
-sd_df.drop_duplicates(inplace=True)
-sd_df.to_csv('data/final/sd_df1.csv', index=False)
-fd_df.to_csv('data/final/fd_df1.csv', index=False)
+df.to_csv("data/final/final_dataset.csv", index=False)
