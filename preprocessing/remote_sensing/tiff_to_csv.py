@@ -2,7 +2,7 @@ import rasterio
 import pandas as pd
 import numpy as np
 
-tiff_path = "data/WSCI/GEDI_L4C_WSCI.tif"
+tiff_path = "data/Aridity/AridityIndex_Periods_2000_2020_Difference.tif"
 
 with rasterio.open(tiff_path) as src:
     band = src.read(1)  # first band
@@ -31,6 +31,6 @@ with rasterio.open(tiff_path) as src:
 
 df_pid["raster_value"] = [v[0] for v in values]
 
-df_pid.rename(columns={"raster_value": "csc"}, inplace=True)
+df_pid.rename(columns={"raster_value": "aridity_delta"}, inplace=True)
 
-df_pid.to_csv("data/processed/PID_WSCI.csv", index=False)
+df_pid.to_csv("data/processed/Aridity.csv", index=False)

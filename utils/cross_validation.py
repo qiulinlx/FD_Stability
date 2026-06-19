@@ -90,6 +90,88 @@ def haversine(lat1, lon1, lat2, lon2):
     
     return R * c
 
+def select_points_stratified(df, n_per_biome=5, biome_col='biome_name', buffer_km=50,
+                            lat_col='lat', lon_col='lon', random_seed=None):
+    """
+    Select exactly n_per_biome points from each biome.
+    
+    Parameters:
+    - df: DataFrame with coordinates
+    - n_per_biome: number of points to select per biome
+    - biome_col: column name for biome
+    - lat_col: latitude column name
+    - lon_col: longitude column name
+    - random_seed: random seed for reproducibility
+    
+    Returns:
+    - selected_data: DataFrame with selected points
+    - selected_indices: indices of selected points
+    - biomes_sampled: dict with biome names and number sampled
+    """
+    
+    if random_seed is not None:
+        np.random.seed(random_seed)
+    
+    # Get biomes present
+    biomes = df[biome_col].unique()
+    
+    selected_indices = []
+    biomes_sampled = {}
+    
+    for biome in biomes:
+        # Get indices for this biome
+        biome_indices = df[df[biome_col] == biome].index.tolist()
+        
+        if len(biome_indices) < n_per_biome:
+            print(f"Warning: Biome '{biome}' has only {len(biome_indices)} points, "
+                  f"sampling all {len(biome_indices)}")
+            n_to_sample = len(biome_indices)
+        else:
+            n_to_sample = n_per_biome
+        
+        # Randomly select points
+        selected = np.random.choice(biome_indices, n_to_sample, replace=False)
+        selected_indices.extend(selected)
+        biomes_sampled[biome] = len(selected)
+    
+    # Get selected data
+    selected_data = df.loc[selected_indices].copy()
+    
+    # Get unique coordinates (if needed)
+    coords = selected_data[[lat_col, lon_col]].drop_duplicates().reset_index(drop=True)
+
+    
+    # Identify points within buffer
+    selected_points = []
+    removed_points = []
+    remaining_points = []
+    
+    for idx, row in coords.iterrows():
+        lat = row[lat_col]
+        lon = row[lon_col]
+        
+        # Check distance to all selected points
+        within_buffer = False
+        for _, sel_row in coords.iterrows():
+            dist = haversine(lat, lon, sel_row[lat_col], sel_row[lon_col])
+            if dist <= buffer_km:
+                within_buffer = True
+                break
+        
+        if idx in selected_indices:
+            selected_points.append(idx)
+        elif within_buffer:
+            removed_points.append(idx)
+        else:
+            remaining_points.append(idx)
+    
+    # Create DataFrames
+    selected_df = df.iloc[selected_points].copy()
+    removed_df = df.iloc[removed_points].copy()
+    remaining_df = df.iloc[remaining_points].copy()
+    
+    return selected_df, remaining_df, removed_df
+
 
 def select_points_with_buffer(df, n_points, buffer_km=100, lat_col='lat', lon_col='lon', 
                               random_seed=None):

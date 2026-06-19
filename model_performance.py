@@ -19,11 +19,11 @@ from sklearn.model_selection import (
     KFold)
 
 # Custom utilities
-import FD_Stability.utils.cross_validation as cval
-from FD_Stability.utils.model_utils import data_processing_v2, train_test_split_v2
+import utils.cross_validation as cval
+from utils.model_utils import data_processing_v2, train_test_split_v2
 
 import threading
-
+import queue
 
 def train_rf_cv(X, y, n_splits=5, rf_params=None):
     if rf_params is None:
@@ -54,7 +54,7 @@ def train_rf_cv(X, y, n_splits=5, rf_params=None):
         mape = mean_absolute_percentage_error(y_val, y_pred, multioutput='raw_values')
         r2  = r2_score(y_val, y_pred, multioutput='raw_values')
         y_mean = np.mean(y_val)
-        fold_mape.append(mape)
+        fold_mape.append(mape*100)
         fold_r2.append(r2)
         fold_y_val.append(y_mean)
         
@@ -145,14 +145,15 @@ if __name__ == "__main__":
             'n_estimators': 200,
             'max_depth': 10,
             'min_samples_leaf': 2,
-            'n_jobs': 4,
+            'n_jobs': -1,
             'random_state': RANDOM_KEY
         }
 
 
     fd_df = pd.read_csv('data/final/final_dataset.csv')
 
-    fd_df.drop(columns=['TPA_UNADJ','DIA_x', 'biome.1', 'ownership.1', 'BHAGE'], inplace=True)
+    fd_df.drop(columns=[ 'managed', 'ownership',
+        'managed.1'], inplace=True)
     fd_df.dropna(inplace=True)
 
 
@@ -163,33 +164,42 @@ if __name__ == "__main__":
     #Preprocessing the data for Random forest regression
     fbiome_dfs= data_processing_v2(fd_df, biome_mapping, ecoregions)
 
-    biomes_list1=['Temperate conifer forests', 'Temperate grasslands',]
-    biomes_list2=['Mediterranean woodlands', 'Xeric shrublands', 
-                 'Temperate broadleaf forests' ]
-    biomes_list3=[ 'Tropical', 'Unknown', 'Boreal and Tundra forests']
- 
-    results = {}
+    biomes_list1=['Temperate conifer forests', 'Xeric shrublands',]
+    biomes_list2=['Mediterranean woodlands' , 'Temperate broadleaf forests' ]
+    biomes_list3=[ 'Tropical', 'Temperate grasslands' ]
+    biomes_list4=[ 'Unknown', 'Boreal and Tundra forests']
 
+    result_queue = queue.Queue()
+    results = {}
 
     t1 = threading.Thread(target=experiment_wrapper, args=("t1", biomes_list1, fbiome_dfs, RANDOM_KEY, TEST_SIZE, rf_params))
     t2 = threading.Thread(target=experiment_wrapper, args=("t2", biomes_list2, fbiome_dfs, RANDOM_KEY, TEST_SIZE, rf_params))
     t3 = threading.Thread(target=experiment_wrapper, args=("t3", biomes_list3, fbiome_dfs, RANDOM_KEY, TEST_SIZE, rf_params))
+    t4 = threading.Thread(target=experiment_wrapper, args=("t4", biomes_list4, fbiome_dfs, RANDOM_KEY, TEST_SIZE, rf_params))
 
     t1.start()
     t2.start()
     t3.start()
+    t4.start()
 
     t1.join()
     t2.join()
     t3.join()
+    t4.join()
 
+    # Collect results from queue
+    while not result_queue.empty():
+        name, output = result_queue.get()
+        results[name] = output
     df1 = pd.DataFrame(results["t1"])
     df2 = pd.DataFrame(results["t2"])
     df3 = pd.DataFrame(results["t3"])
+    df4 = pd.DataFrame(results["t4"])
 
 
     results_df=pd.concat([df1, df2], ignore_index=True)
     results_df=pd.concat([results_df, df3], ignore_index=True)
+    results_df=pd.concat([results_df, df4], ignore_index=True)
     
     results_df.to_csv("results/cv_mape_values.csv", index=False)
 

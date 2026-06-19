@@ -1,6 +1,6 @@
 
 import geopandas as gpd
-import FD_Stability.utils.cross_validation as cval
+import utils.cross_validation as cval
 import random 
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
@@ -86,7 +86,7 @@ def train_test_split_v1(sub_df, random_key):
 
 
 def train_test_split_v2(df, random_key, n_points_to_select=50, buffer_km=100):
-    sub_df = df.drop(columns=['biome', 'managed.1', 'lon_bin', 'lat_bin', 'geometry',
+    sub_df = df.drop(columns=['biome', 'lon_bin', 'lat_bin', 'geometry',
        'index_right', ])
 
     
@@ -116,3 +116,4 @@ def train_test_split_v2(df, random_key, n_points_to_select=50, buffer_km=100):
     X_test = pd.DataFrame(scaler.transform(X_test), columns=X_test.columns, index=X_test.index)
 
     return X_train, y_train, X_test, y_test
+
