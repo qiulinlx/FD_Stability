@@ -118,9 +118,9 @@ def compute_acf_lags(group, npp_col="Npp", max_lag=3):
 
 def cleaning(PID_df, csc_df, npp_df):
 
-    PID_df["managed"] = PID_df["managed"].fillna(-1)
-    PID_df["ownership"] = PID_df["ownership"].fillna("No Data")
-    PID_df["biome"] = PID_df["biome"].fillna("No Data")
+    # PID_df["managed"] = PID_df["managed"].fillna(-1)
+    # PID_df["ownership"] = PID_df["ownership"].fillna("No Data")
+    # PID_df["biome"] = PID_df["biome"].fillna("No Data")
     if 'lon' in PID_df.columns and 'lat' in PID_df.columns:
         PID_df = PID_df[PID_df["lon"] <= 0]
         PID_df = PID_df[PID_df["lat"] > 22]

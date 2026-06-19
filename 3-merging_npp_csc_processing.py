@@ -1,8 +1,8 @@
 import pandas as pd
 import numpy as np
-import FD_Stability.utils.analysis_functions as af
+import utils.analysis_functions as af
 from scipy.signal import detrend
-from FD_Stability.utils.data_utils import data_preprocessing
+from utils.data_utils import data_preprocessing
 from sklearn.preprocessing import LabelEncoder
 
 
@@ -10,7 +10,7 @@ from sklearn.preprocessing import LabelEncoder
 We run this file to get cleaned datasets for modelling
 '''
 
-PID_df=pd.read_csv('data/lookup/PID_location_all.csv')
+PID_df=pd.read_csv('data/lookup/PID_location_all2.csv')
 csc_df= pd.read_csv('data/WSCI/PID_location_WSCI.csv')
 DBH_df=pd.read_csv('data/processed/PID_GCDBH.csv')
 npp_df=pd.read_csv('data/processed/PID_npp.csv')
@@ -41,12 +41,13 @@ npp_df = pd.DataFrame({'PID': PID_list, 'transformed npp': volatility})
 
 y_df=npp_df.merge(csc_df,  on='PID', how='inner')
 
-le = LabelEncoder()
-df['biome'] = le.fit_transform(df['biome'])
+# le = LabelEncoder()
+# df['biome'] = le.fit_transform(df['biome'])
 
-le = LabelEncoder()
-df['ownership'] = le.fit_transform(df['ownership'])
-df.drop(columns=["source_file"], inplace=True)
+# le = LabelEncoder()
+# df['ownership'] = le.fit_transform(df['ownership'])
+df.drop(columns=["source_file", 'biome'], inplace=True)
+df = df.rename(columns={'BIOME_NAME': 'biome'})
 df=df.merge(y_df, on='PID', how='inner')
 
 df.to_csv("data/final/final_dataset.csv", index=False)
