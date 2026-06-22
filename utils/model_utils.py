@@ -84,13 +84,8 @@ def train_test_split_v1(sub_df, random_key):
     return X_train, y_train, X_test, y_test
 
 
-
 def train_test_split_v2(df, random_key, n_points_to_select=50, buffer_km=100):
-    sub_df = df.drop(columns=['biome', 'lon_bin', 'lat_bin', 'geometry',
-       'index_right', ])
-
-    
-    random_key =10
+    sub_df = df.drop(columns=['biome', 'BHAGE' ])
 
     selected, remaining, removed = cval.select_points_with_buffer(
         sub_df, 
@@ -105,10 +100,10 @@ def train_test_split_v2(df, random_key, n_points_to_select=50, buffer_km=100):
     train= remaining.drop(columns=['lat', 'lon'])
 
     y=['transformed npp'] 
-    X_train=train.drop(columns=y+['PID', 'spatial_group', 'ECO_NAME'])
+    X_train=train.drop(columns=y+['PID'])
     y_train = train['transformed npp'].values
 
-    X_test= test.drop(columns=y+['PID', 'spatial_group', 'ECO_NAME'])
+    X_test= test.drop(columns=y+['PID'])
     y_test = test['transformed npp'].values
     
     scaler= StandardScaler()
@@ -117,3 +112,31 @@ def train_test_split_v2(df, random_key, n_points_to_select=50, buffer_km=100):
 
     return X_train, y_train, X_test, y_test
 
+
+def train_test_split_v3(df, random_key, n_points_to_select=2, buffer_km=100):
+    sub_df = df
+
+    selected, remaining, removed = select_points_stratified(sub_df, 
+        n_per_biome=n_points_to_select,
+        buffer_km=buffer_km,
+        lat_col='lat',
+        lon_col='lon',
+        random_seed=random_key
+    )
+
+    test = selected.drop(columns=['lat', 'lon', 'biome', "BHAGE" ])
+    test_biomes=selected[['biome']]
+    train= remaining.drop(columns=['lat', 'lon', 'biome', "BHAGE"])
+
+    y=['transformed npp'] 
+    X_train=train.drop(columns=y+['PID'])
+    y_train = train['transformed npp'].values
+
+    X_test= test.drop(columns=y+['PID' ])
+    y_test = test['transformed npp'].values
+    
+    scaler= StandardScaler()
+    X_train = pd.DataFrame(scaler.fit_transform(X_train), columns=X_train.columns, index=X_train.index)
+    X_test = pd.DataFrame(scaler.transform(X_test), columns=X_test.columns, index=X_test.index)
+
+    return X_train, y_train, X_test, y_test, test_biomes

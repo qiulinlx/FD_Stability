@@ -237,8 +237,6 @@ def select_points_with_buffer(df, n_points, buffer_km=100, lat_col='lat', lon_co
     
     return selected_df, remaining_df, removed_df
 
-
-
 '''
 
 Preparing for ecoregion cross validation 
