@@ -30,7 +30,7 @@ def data_preprocessing (df, random_key=42):
 
     joined = gpd.sjoin(gdf, ecoregions, how="left", predicate="within")
 
-    X_train, y_train, X_test, y_test = train_test_split(joined, random_key)
+    X_train, y_train, X_test, y_test = train_test_split_v1(joined, random_key)
     return X_train, y_train, X_test, y_test
 
 def data_processing_v2(df, biome_mapping, ecoregions):
@@ -116,7 +116,7 @@ def train_test_split_v2(df, random_key, n_points_to_select=50, buffer_km=100):
 def train_test_split_v3(df, random_key, n_points_to_select=2, buffer_km=100):
     sub_df = df
 
-    selected, remaining, removed = select_points_stratified(sub_df, 
+    selected, remaining, removed = cval.select_points_stratified(sub_df, 
         n_per_biome=n_points_to_select,
         buffer_km=buffer_km,
         lat_col='lat',
