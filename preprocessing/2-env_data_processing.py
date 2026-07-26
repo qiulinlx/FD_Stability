@@ -3,7 +3,7 @@ import pyarrow as pa
 import pyarrow.ipc as ipc
 import os 
 import warnings
-from preprocessing.process_arrow import load_arrow
+from FD_Stability.preprocessing.process_arrow import load_arrow
 from pathlib import Path
 import utils.generate_metrics as gm
 from utils.data_utils import merge_files
@@ -42,7 +42,7 @@ if __name__ == "__main__":
 
     env_df= pd.read_csv('data/raw/Composite.csv')
     PID_df=pd.read_csv('data/lookup/PID_location_all.csv')
-    traits=pd.read_csv("data/lookup/traitMatrix.csv")
+    traits=pd.read_csv("data/lookup/traitMatrix1.csv")
 
     PID_df["managed"] = PID_df["managed"].fillna(-1)
     PID_df["ownership"] = PID_df["ownership"].fillna("No Data")
@@ -77,14 +77,15 @@ if __name__ == "__main__":
                 table = pd.read_feather(filepath)
 
         print((f"Processing {file}"))
-
-        table = table[table['goodDesign'].isin([1.0, 311.0, 312.0])]
+        print(table["PID"].nunique())
+        table = table[table['DESIGNCD'].isin([1, 111, 112, 113, 116, 117, 311, 312, 501, 502, 503, 504, 505, 506])]
         table = table[table['status'].isin(['live'])]
         table = table[table['cdMult'].isin([0.0])]
+        print(table["PID"].nunique())
 
         pivot = pd.crosstab(table["PID"], table["accepted_bin"])
 
-        pivot.columns.name = None       # remove the "Type" name
+        pivot.columns.name = None       # n_present , abundance weighted
         pivot = pivot.reset_index() 
 
         pivot = pivot.set_index("PID")
@@ -92,7 +93,7 @@ if __name__ == "__main__":
         fd_df=gm.generate_functional_diversity_metrics(pivot, traits)
 
         sd_df=gm.generate_species_diversity_metrics(pivot)
-
+        
         # Merging FD and Environmental Data ------------------------------------------------
         total_df = fd_df.merge(env_df, on='PID', how='inner').merge(sd_df, on='PID', how='inner')
 
@@ -102,5 +103,5 @@ if __name__ == "__main__":
         i+=1
 
     csv_dir = Path("data/.joined")
-    out_file = "dataset1.parquet"
+    out_file = "data/final/dataset.parquet"
     merge_files(csv_dir, out_file)

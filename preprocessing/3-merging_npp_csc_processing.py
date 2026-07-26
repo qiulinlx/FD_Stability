@@ -1,20 +1,48 @@
 import pandas as pd
 import numpy as np
-import utils.analysis_functions as af
 from scipy.signal import detrend
 from utils.data_utils import data_preprocessing
+from sklearn.preprocessing import LabelEncoder
+
 
 '''
 We run this file to get cleaned datasets for modelling
 '''
 
-PID_df=pd.read_csv('data/lookup/PID_location_all.csv')
-csc_df= pd.read_csv('data/processed/PID_location_WSCI.csv')
+def cleaning(PID_df, csc_df, npp_df):
+
+    # PID_df["managed"] = PID_df["managed"].fillna(-1)
+    # PID_df["ownership"] = PID_df["ownership"].fillna("No Data")
+    # PID_df["biome"] = PID_df["biome"].fillna("No Data")
+    if 'lon' in PID_df.columns and 'lat' in PID_df.columns:
+        PID_df = PID_df[PID_df["lon"] <= 0]
+        PID_df = PID_df[PID_df["lat"] > 22]
+
+    csc_df.rename(columns={'PID_left': "PID"}, inplace= True)
+
+    csc_df=csc_df.merge(PID_df, on='PID', how='inner')
+
+    return PID_df, csc_df, npp_df 
+
+def compute_volatility(arr): 
+    '''
+    Log of inverse CoV
+    '''
+    s=arr.mean()
+
+    arr= pd.Series(detrend(arr*10))
+    
+    v= s/arr.std()
+    return v , s
+
+
+PID_df=pd.read_csv('data/lookup/PID_location_all2.csv')
+csc_df= pd.read_csv('data/WSCI/PID_location_WSCI.csv')
+DBH_df=pd.read_csv('data/processed/PID_GCDBH.csv')
 npp_df=pd.read_csv('data/processed/PID_npp.csv')
-df = pd.read_parquet("data/processed/dataset1.parquet")
+df = pd.read_parquet("data/final/dataset.parquet")
 
-
-PID_df, csc_df, npp_df = af.cleaning(PID_df, csc_df, npp_df)
+PID_df, csc_df, npp_df = cleaning(PID_df, csc_df, npp_df)
 
 csc_df.drop_duplicates(subset=['PID'], inplace=True)
 
@@ -30,26 +58,22 @@ mean=[]
 for pid, arr in grouped.items():
     if arr.shape[0] > 5:
         if (arr == 0).sum() < 4: 
-            v , s = af.compute_volatility(arr)
+            v , s = compute_volatility(arr)
             volatility.append(v)
             PID_list.append(pid)
             mean.append(s)
 
 npp_df = pd.DataFrame({'PID': PID_list, 'transformed npp': volatility})
 
-# csc_df['csc'] = (csc_df['csc']-min(csc_df['csc']))/(max(csc_df['csc'])-min(csc_df['csc']))
-# csc_df["BHAGE"] = csc_df["BHAGE"].fillna("0.0")
-# csc_df=csc_df[['PID', 'csc']]
+y_df=npp_df.merge(csc_df,  on='PID', how='inner')
 
-# y=['transformed npp', 'csc'] 
+# le = LabelEncoder()
+# df['biome'] = le.fit_transform(df['biome'])
 
-sd_df, fd_df=data_preprocessing(df, npp_df, csc_df)
+# le = LabelEncoder()
+# df['ownership'] = le.fit_transform(df['ownership'])
+df.drop(columns=["source_file", 'biome'], inplace=True)
+df = df.rename(columns={'BIOME_NAME': 'biome'})
+df=df.merge(y_df, on='PID', how='inner')
 
-fd_df.drop_duplicates(subset=['PID'], inplace=True)
-sd_df.drop_duplicates(subset=['PID'], inplace=True)
-
-
-fd_df.drop_duplicates(inplace=True)
-sd_df.drop_duplicates(inplace=True)
-sd_df.to_csv('data/processed/sd_df.csv', index=False)
-fd_df.to_csv('data/processed/fd_df.csv', index=False)
+df.to_csv("data/final/final_dataset_1.csv", index=False)

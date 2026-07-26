@@ -1,27 +1,28 @@
 import os
 import numpy as np
 import pandas as pd
-import utils.fdiv as fd
+import FD_Stability.utils.fdiv as fd
 import warnings
-import utils.sdiv as sd
+import FD_Stability.utils.sdiv as sd
+from sklearn.preprocessing import StandardScaler
 
 # warnings.simplefilter(action='ignore', category=pd.errors.SettingWithCopyWarning)
 
 def generate_functional_diversity_metrics(df:pd.DataFrame, traits:pd.DataFrame)->pd.DataFrame:
-    species= df.columns.tolist()
-
+    species = df.columns.tolist()
     traits = traits[traits["Species"].isin(species)]
 
     cols_to_log = traits.columns.difference(['Species'])
-    traits[cols_to_log] = traits[cols_to_log].apply(np.log)  #Apply some sort of normalisation transformation
+    traits[cols_to_log] = traits[cols_to_log].apply(np.log)
 
-    Fmpd = fd.MPD(df, traits)
+    scaler = StandardScaler()
+    traits[cols_to_log] = scaler.fit_transform(traits[cols_to_log])
+    # Fmpd = fd.MPD(df, traits)
     FEve_df=fd.Functional_Evenness(df, traits, Relative_abundance=True)
-    FDis = fd.Functional_Dispersion(df, traits)
-    FDiv = fd.Functional_Divergence(df, traits)
+    # FDis = fd.Functional_Dispersion(df, traits)
     RQ_df = fd.Raos_Q(df, traits)
 
-    df =RQ_df.merge(FEve_df, on="PID").merge(FDis, on="PID").merge(FDiv, on="PID").merge(Fmpd, on="PID")
+    df =RQ_df.merge(FEve_df, on="PID") #.merge(Fmpd, on="PID").merge(FDis, on="PID")
     return df
 
 
@@ -34,4 +35,3 @@ def generate_species_diversity_metrics(df):
 
     df = sp_df.merge(shannon_df, on="PID").merge(simpsons_df, on="PID").merge(seq_df, on="PID")
     return df
-

@@ -1,0 +1,80 @@
+Ydefaults: &defaults
+    objective: "reg:squarederror"
+    max_depth: 6
+    min_child_weight: 5
+    gamma: 0.1
+    reg_lambda: 2.0
+    reg_alpha: 0.5
+    tree_method: "approx"
+
+Temperate conifer forests:
+  description: "Default configuration"
+  n_rounds: 200
+  early_stopping_rounds: 20
+  params:
+    <<: *defaults
+    learning_rate: 0.05
+
+Boreal and Tundra forests:
+  description: "Regularized for small dataset"
+  n_rounds: 90
+  early_stopping_rounds: 10
+  params:
+    <<: *defaults
+    learning_rate: 0.02
+
+Xeric shrublands:
+  description: "Regularized for small dataset"
+  n_rounds: 100
+  early_stopping_rounds: 10
+  params:
+    <<: *defaults
+    learning_rate: 0.01
+
+Temperate grasslands:
+  description: "Regularized with more rounds"
+  n_rounds: 250
+  early_stopping_rounds: 15
+  params:
+    <<: *defaults
+    learning_rate: 0.01
+
+Mediterranean woodlands:
+  description: "Regularized for small dataset (RF better)"
+  n_rounds: 150
+  early_stopping_rounds: 10
+  params:
+    <<: *defaults
+    learning_rate: 0.005
+
+Temperate broadleaf forests:
+  description: "NA"
+  n_rounds: 380
+  early_stopping_rounds: 5
+  params:
+    <<: *defaults
+    learning_rate: 0.01
+    reg_lambda: 3.0
+
+Tropical:
+  description: "Large dataset - more rounds"
+  n_rounds: 330
+  early_stopping_rounds: 30
+  params:
+    <<: *defaults
+    learning_rate: 0.01
+
+biome_mapping:
+  Temperate broadleaf forests: Temperate broadleaf forests
+  Temperate conifer forests: Temperate conifer forests
+  Temperate grasslands: Temperate grasslands
+  Xeric shrublands: Xeric shrublands
+  Mediterranean woodlands: Mediterranean woodlands
+  Flooded grasslands: Flooded grasslands
+  Mangroves: Mangroves
+  Tundra: Boreal and Tundra forests
+  Boreal forests or taiga: Boreal and Tundra forests
+  Tropical grasslands: Tropical
+  Tropical coniferous forests: Tropical
+  Tropical moist broadleaf forests: Tropical
+  Tropical dry broadleaf forests: Tropical

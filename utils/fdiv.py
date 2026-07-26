@@ -114,16 +114,14 @@ def Frich_Intersect(hull1, hull2, n_samples: int = 100000) -> float:
     FRic_intersect = intersection_fraction / union_fraction if union_fraction > 0 else 0
     return FRic_intersect
 
-
 def Functional_Evenness(sp_loc: pd.DataFrame, traits: pd.DataFrame, Relative_abundance: bool = False) -> pd.DataFrame:
     """
     Compute Functional Evenness (FEve) using the MST approach (Villéger et al., 2008)
-    for presence/absence data.
-
+    for presence/absence or relative abundance data.
     Args:
         sp_loc: Pivot table of Plot IDs and Species
         traits: dataframe of functional traits (rows=species, columns=traits), must have column "Species"
-
+        Relative_abundance: If True, uses relative abundance weighting
     Returns:
         FEve_df: DataFrame with PID and Functional Evenness
     """
@@ -133,22 +131,33 @@ def Functional_Evenness(sp_loc: pd.DataFrame, traits: pd.DataFrame, Relative_abu
     # Get species present in each PID
     species_PID = sp_loc.apply(lambda row: row.index[row != 0].tolist(), axis=1)
 
-    for pid, species in zip(species_PID.index,species_PID):
-   
+    for pid, species in zip(species_PID.index, species_PID):
+
+        # Subset, align traits to species order, drop species with missing traits
+        traits_sub = traits[traits["Species"].isin(species)].copy()
+        traits_sub = traits_sub.set_index("Species").reindex(species).dropna()
+        species = traits_sub.index.tolist()
         S = len(species)
 
-        if S < 3:
-            # FEve undefined for <2 species
+        if S < 2:
             FEven.append(np.nan)
             pID.append(pid)
-            
             continue
 
-        # Subset traits for present species
-        traits_sub = traits[traits["Species"].isin(species)].copy()
-        traits_sub.drop(columns=['Species'], inplace=True)
+        if S == 2:
+            if Relative_abundance:
+                ab = sp_loc.loc[[pid], species]
+                total = ab.sum(axis=1)
+                if (total == 0).any():
+                    raise ValueError(f"Plot {pid} has zero total abundance")
+                ab = ab.div(total, axis=0).values.flatten().astype(float)
+                FEven.append(1 - np.abs(ab[0] - ab[1]))
+            else:
+                FEven.append(1.0)
+            pID.append(pid)
+            continue
 
-        # Distance matrix
+        # Distance matrix (traits_sub already indexed by Species)
         dist_matrix = squareform(pdist(traits_sub.values, metric='euclidean'))
 
         # Minimum Spanning Tree
@@ -157,34 +166,25 @@ def Functional_Evenness(sp_loc: pd.DataFrame, traits: pd.DataFrame, Relative_abu
 
         # Weighted branch lengths
         EW_list = []
-        
-
         if Relative_abundance:
-            ab= sp_loc[sp_loc.index == pid]
-            ab = ab[[c for c in species if c in ab.columns]]
-
-            ab = ab.loc[:, ab.columns.isin(traits["Species"])] # Check that species are in both Dfs
-
-            ab = ab.div(ab.sum(axis=1), axis=0)
-            ab=np.array(ab)[0]
+            ab = sp_loc.loc[[pid], species]  # enforce species order
+            total = ab.sum(axis=1)
+            if (total == 0).any():
+                raise ValueError(f"Plot {pid} has zero total abundance")
+            ab = ab.div(total, axis=0).values.flatten().astype(float)
 
             for u, v, data in mst.edges(data=True):
-                EW = data['weight'] / (ab[u] + ab[v])
-                EW_list.append(EW)
-
+                EW_list.append(data['weight'] / (ab[u] + ab[v]))
         else:
             for u, v, data in mst.edges(data=True):
-                            EW = data['weight'] / 2
-                            EW_list.append(EW)
+                EW_list.append(data['weight'] / 2)
 
         EW_array = np.array(EW_list)
         PEW = EW_array / EW_array.sum()
+        FEve_val = (np.sum(np.minimum(PEW, 1 / (S - 1))) - (1 / (S - 1))) / (1 - 1 / (S - 1))
 
-        FEve = np.sum(np.minimum(PEW, 1 / (S - 1))) / (1 - 1 / (S - 1))
-
-        FEven.append(FEve)
+        FEven.append(FEve_val)
         pID.append(pid)
-        
 
     FEve_df = pd.DataFrame({"PID": pID, "Functional_Evenness": FEven})
     return FEve_df
@@ -195,7 +195,7 @@ def Functional_Divergence(sp_loc:pd.DataFrame, traits: pd.DataFrame) -> pd.DataF
 
     Args:
         sp_loc: Pivot table of Plot IDs and Species
-        trait_array: np.ndarray of shape (S, T)
+        traits: DataFrame of species traits
 
     Returns:
         FDiv (float)
@@ -315,62 +315,51 @@ def Functional_Dispersion(sp_loc:pd.DataFrame, traits: np.ndarray, weighted: boo
 
 
 
-def Raos_Q(sp_loc:pd.DataFrame, traits: np.ndarray) -> pd.DataFrame():
+def Raos_Q(sp_loc: pd.DataFrame, traits: pd.DataFrame) -> pd.DataFrame:
     """
     Compute Rao's Quadratic Entropy (RaoQ) from a trait distance matrix.
-
     Args:
         sp_loc: Pivot table of Plot IDs and Species
-        trait_array: np.ndarray of shape (S, T)
-
+        traits: DataFrame of functional traits, must have column "Species"
     Returns:
-        RaoQ (float)
+        RQ_df: DataFrame with PID and Raos_Q
     """
-
     pID = []
     RaosQ = []
 
     species_PID = sp_loc.apply(lambda row: row.index[row != 0].tolist(), axis=1)
 
-    for pid, species in zip(species_PID.index,species_PID):
+    for pid, species in zip(species_PID.index, species_PID):
 
+        # Align traits to species order, drop species with missing traits
+        traits_sub = traits[traits["Species"].isin(species)].copy()
+        traits_sub = traits_sub.set_index("Species").reindex(species).dropna()
+        species = traits_sub.index.tolist()
         S = len(species)
 
-        if S < 3:
-            # FEve undefined for <2 species
+        if S < 2:
             RaosQ.append(np.nan)
             pID.append(pid)
-            
             continue
-        
-        traits_sub = traits[traits["Species"].isin(species)].copy()
-        traits_sub.drop(columns=['Species'], inplace=True)
 
-        dist_matrix = squareform(pdist(traits_sub, metric='euclidean'))
-        
-        ab= sp_loc[sp_loc.index == pid]
-        ab = ab[[c for c in species if c in ab.columns]]
+        # Distance matrix
+        dist_matrix = squareform(pdist(traits_sub.values, metric='euclidean'))
 
-        ab = ab.loc[:, ab.columns.isin(traits["Species"])] # Check that species are in both Dfs
-
-
-        ab = ab.div(ab.sum(axis=1), axis=0)
-        ab=np.array(ab)[0]
-
-        # Compute abundance weight matrix
-        weight_matrix = np.outer(ab, ab)
-
-        # Optional: set diagonal to zero
-        # np.fill_diagonal(weight_matrix, 0)
+        # Relative abundance — enforce species order
+        ab = sp_loc.loc[[pid], species]
+        total = ab.sum(axis=1)
+        if (total == 0).any():
+            raise ValueError(f"Plot {pid} has zero total abundance")
+        ab = ab.div(total, axis=0).values.flatten().astype(float)
 
         # Rao's Q = sum(p_i * p_j * d_ij)
-        RaoQ = np.sum(weight_matrix * dist_matrix)
+        weight_matrix = np.outer(ab, ab)
+        RaoQ_val = np.sum(weight_matrix * dist_matrix)
 
-        RaosQ.append(RaoQ)
+        RaosQ.append(RaoQ_val)
         pID.append(pid)
-    
-    RQ_df = pd.DataFrame({"PID": pID, "Raos_Q": RaosQ})
 
+    RQ_df = pd.DataFrame({"PID": pID, "Raos_Q": RaosQ})
     return RQ_df
 
 def MPD(sp_loc:pd.DataFrame, traits: np.ndarray) -> pd.DataFrame():

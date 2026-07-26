@@ -39,18 +39,19 @@ pid_df = pid_df[pid_df['DIA'].apply(len) >= 2]
 
 gc=[]
 pid=[]
-
+mx=[]
 i=0
 for idx, row in pid_df.iterrows():
     
     dbh = np.array(row['DIA'])    
     if len(dbh) > 2:
         gini= gini_coefficient(dbh)
+        mx.append(max(dbh))
         gc.append(gini)
         pid.append(row['PID'])
         i+=1
     else: 
         print('did not compute')
 
-df=pd.DataFrame({'PID':pid,'GC':gc})
+df=pd.DataFrame({'PID':pid,'GC':gc,'Max_DBH':mx})
 df.to_csv('data/processed/PID_GCDBH.csv',index=False)
