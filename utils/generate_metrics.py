@@ -1,9 +1,9 @@
 import os
 import numpy as np
 import pandas as pd
-import FD_Stability.utils.fdiv as fd
+import utils.fdiv as fd
 import warnings
-import FD_Stability.utils.sdiv as sd
+import utils.sdiv as sd
 from sklearn.preprocessing import StandardScaler
 
 # warnings.simplefilter(action='ignore', category=pd.errors.SettingWithCopyWarning)

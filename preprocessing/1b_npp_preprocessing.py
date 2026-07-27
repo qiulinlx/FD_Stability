@@ -1,9 +1,6 @@
 import pandas as pd
 import numpy as np
 from scipy.signal import detrend
-from utils.data_utils import data_preprocessing
-from sklearn.preprocessing import LabelEncoder
-
 
 '''
 We run this file to get cleaned datasets for modelling
@@ -35,16 +32,10 @@ def compute_volatility(arr):
     v= s/arr.std()
     return v , s
 
+df1=pd.read_csv("data/raw/NPP_PIDs_1.csv")
+df2=pd.read_csv("data/raw/NPP_PIDs_2.csv")
 
-PID_df=pd.read_csv('data/lookup/PID_location_all2.csv')
-csc_df= pd.read_csv('data/WSCI/PID_location_WSCI.csv')
-DBH_df=pd.read_csv('data/processed/PID_GCDBH.csv')
-npp_df=pd.read_csv('data/processed/PID_npp.csv')
-df = pd.read_parquet("data/final/dataset.parquet")
-
-PID_df, csc_df, npp_df = cleaning(PID_df, csc_df, npp_df)
-
-csc_df.drop_duplicates(subset=['PID'], inplace=True)
+npp_df=pd.concat([df1, df2], ignore_index=True)
 
 npp_df.rename(columns={'NPP_kgC_m2_yr': "Npp"}, inplace=True)
 
@@ -65,15 +56,4 @@ for pid, arr in grouped.items():
 
 npp_df = pd.DataFrame({'PID': PID_list, 'transformed npp': volatility})
 
-y_df=npp_df.merge(csc_df,  on='PID', how='inner')
-
-# le = LabelEncoder()
-# df['biome'] = le.fit_transform(df['biome'])
-
-# le = LabelEncoder()
-# df['ownership'] = le.fit_transform(df['ownership'])
-df.drop(columns=["source_file", 'biome'], inplace=True)
-df = df.rename(columns={'BIOME_NAME': 'biome'})
-df=df.merge(y_df, on='PID', how='inner')
-
-df.to_csv("data/final/final_dataset_1.csv", index=False)
+npp_df.to_csv('data/processed/PID_npp_volatility.csv', index=False)

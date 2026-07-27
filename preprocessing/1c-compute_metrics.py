@@ -3,7 +3,13 @@ import pyarrow as pa
 import pyarrow.ipc as ipc
 import os 
 import warnings
-from FD_Stability.preprocessing.process_arrow import load_arrow
+
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+
+from preprocessing.process_arrow import load_arrow
 from pathlib import Path
 import utils.generate_metrics as gm
 from utils.data_utils import merge_files
@@ -25,22 +31,8 @@ We run this to:
 
 if __name__ == "__main__":
 
-    variables= ["lat", "lon",
-    "CHELSA_BIO_Annual_Mean_Temperature",
-    "CHELSA_BIO_Annual_Precipitation",
-    "CHELSA_BIO_Precipitation_Seasonality", 
-    "CrowtherLab_SoilMoisture_intraAnnualSD_downsampled10km",
-    "SG_SOC_Content_015cm",
-    "EsaCci_BurntAreasProbability", 
-    "EarthEnvTopoMed_Elevation", 
-    "EarthEnvTopoMed_Slope",
-    "SG_Depth_to_bedrock", 
-    "EarthEnvTopoMed_Northness"
-    ]
-
     os.makedirs("data/.joined", exist_ok=True)
 
-    env_df= pd.read_csv('data/raw/Composite.csv')
     PID_df=pd.read_csv('data/lookup/PID_location_all.csv')
     traits=pd.read_csv("data/lookup/traitMatrix1.csv")
 
@@ -50,17 +42,6 @@ if __name__ == "__main__":
 
     PID_df.drop_duplicates(subset=['PID'], inplace=True)
 
-    # Preparing Composite Data ------------------------------------------------
-
-    env_df = env_df[variables]
-
-    env_df[['lat', 'lon']] = env_df[['lat', 'lon']].round(4)
-    
-
-    PID_df[['lat', 'lon']] = PID_df[['lat', 'lon']].round(4)
-    env_df = env_df.merge(PID_df, on=['lat', 'lon'], how='left')
-    env_df.dropna(subset=['PID'], inplace=True)  
-    env_df.drop(columns=['lat', 'lon'], inplace=True)
     
     # Preparing Funcional Diversity Data ------------------------------------------------
     folder= "data/FIA_states"
@@ -95,7 +76,7 @@ if __name__ == "__main__":
         sd_df=gm.generate_species_diversity_metrics(pivot)
         
         # Merging FD and Environmental Data ------------------------------------------------
-        total_df = fd_df.merge(env_df, on='PID', how='inner').merge(sd_df, on='PID', how='inner')
+        total_df = fd_df.merge(sd_df, on='PID', how='inner')
 
         total_df = total_df.loc[:, total_df.isna().sum() <= 50000]
 
