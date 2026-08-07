@@ -55,7 +55,7 @@ def Functional_Richness(sp_loc:pd.DataFrame, traits: np.ndarray) -> pd.DataFrame
 
         n_species, n_traits = np.array(traits_sub).shape
 
-        if n_species <= n_traits  or n_species < 3:
+        if n_species <= n_traits + 1 :
             # FEve undefined for <2 species
             Frich.append(np.nan)
             pID.append(pid)
@@ -64,7 +64,7 @@ def Functional_Richness(sp_loc:pd.DataFrame, traits: np.ndarray) -> pd.DataFrame
             continue  # will automatically go to the next iteration
         # Scale traits
         traits_scaled = StandardScaler().fit_transform(traits_sub)
-
+        traits_scaled = np.unique(traits_scaled, axis=0)
         n_species, n_traits = traits_scaled.shape
 
         hull = ConvexHull(traits_scaled)
@@ -162,7 +162,7 @@ def Functional_Evenness(sp_loc: pd.DataFrame, traits: pd.DataFrame, Relative_abu
 
         # Minimum Spanning Tree
         G = nx.from_numpy_array(dist_matrix)
-        mst = nx.minimum_spanning_tree(G)
+        mst = nx.minimum_spanning_tree(G,algorithm="prim")
 
         # Weighted branch lengths
         EW_list = []
@@ -338,7 +338,7 @@ def Raos_Q(sp_loc: pd.DataFrame, traits: pd.DataFrame) -> pd.DataFrame:
         S = len(species)
 
         if S < 2:
-            RaosQ.append(np.nan)
+            RaosQ.append(0)
             pID.append(pid)
             continue
 

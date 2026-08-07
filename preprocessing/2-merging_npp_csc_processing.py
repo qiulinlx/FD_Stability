@@ -18,7 +18,7 @@ We run this file to merge datasets for modelling
 csc_df= pd.read_csv('data/processed/PID_location_WSCI.csv')
 env_df=pd.read_csv('data/processed/env_data.csv')
 npp_df=pd.read_csv('data/processed/PID_npp_volatility.csv')
-df = pd.read_parquet("data/final/dataset.parquet")
+df = pd.read_parquet("data/final/dataset_ba.parquet")
 
 df=df.merge(csc_df[['PID','WSCI']], on='PID', how='left')
 df=df.merge(env_df, on='PID', how='left')

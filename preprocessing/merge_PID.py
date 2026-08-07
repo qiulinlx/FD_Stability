@@ -4,6 +4,9 @@ import numpy as np
 dataset_name = "data/final/final_dataset.csv"
 
 additinal_data = "data/treecover/treecover_PID.csv"
+# "data/processed/aridity.csv"
+# 'data/processed/PID_with_pet.csv' pet_std
+# "data/treecover/treecover_PID.csv"
 
 df= pd.read_csv(dataset_name)
 df1=pd.read_csv(additinal_data)

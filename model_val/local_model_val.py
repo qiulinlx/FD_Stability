@@ -151,11 +151,14 @@ if __name__ == "__main__":
 
 
     biome_list=["Temperate broadleaf forests", "Temperate conifer forests", "Temperate grasslands",
-                "Xeric shrublands", "Boreal and Tundra forests", "Tropical",
+               "Boreal and Tundra forests", "Tropical",
                 "Mediterranean woodlands"]
 
 
-    fd_df = pd.read_csv('data/final/final_dataset_with_aridity.csv')
+    fd_df = pd.read_csv('data/final/final_dataset.csv')
+    PID_df= pd.read_csv('data/lookup/PID_location_all.csv') 
+    fd_df=fd_df.merge(PID_df[['PID','lat','lon', 'biome']], on='PID', how='left')
+
 
     fd_df = fd_df[~fd_df["biome"].isin(["Mangroves", "Flooded grasslands"])]
 

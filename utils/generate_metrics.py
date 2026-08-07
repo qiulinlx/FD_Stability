@@ -9,20 +9,21 @@ from sklearn.preprocessing import StandardScaler
 # warnings.simplefilter(action='ignore', category=pd.errors.SettingWithCopyWarning)
 
 def generate_functional_diversity_metrics(df:pd.DataFrame, traits:pd.DataFrame)->pd.DataFrame:
-    species = df.columns.tolist()
-    traits = traits[traits["Species"].isin(species)]
+    # species = df.columns.tolist()
+    # traits = traits[traits["Species"].isin(species)]
 
-    cols_to_log = traits.columns.difference(['Species'])
-    traits[cols_to_log] = traits[cols_to_log].apply(np.log)
+    # # cols_to_log = traits.columns.difference(['Species'])
+    # traits[cols_to_log] = traits[cols_to_log].apply(np.log)
 
-    scaler = StandardScaler()
-    traits[cols_to_log] = scaler.fit_transform(traits[cols_to_log])
+    # scaler = StandardScaler()
+    # traits[cols_to_log] = scaler.fit_transform(traits[cols_to_log])
     # Fmpd = fd.MPD(df, traits)
     FEve_df=fd.Functional_Evenness(df, traits, Relative_abundance=True)
     # FDis = fd.Functional_Dispersion(df, traits)
     RQ_df = fd.Raos_Q(df, traits)
+    FRich=fd.Functional_Richness(df, traits)
 
-    df =RQ_df.merge(FEve_df, on="PID") #.merge(Fmpd, on="PID").merge(FDis, on="PID")
+    df =RQ_df.merge(FEve_df, on="PID").merge(FRich, on="PID") #.merge(Fmpd, on="PID").merge(FDis, on="PID")
     return df
 
 

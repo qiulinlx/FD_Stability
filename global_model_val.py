@@ -109,9 +109,9 @@ def train_test_split_v3(df, random_key, n_points_to_select=2, buffer_km=100):
                                    random_seed=random_key)
     
 
-    test = selected.drop(columns=['lat', 'lon', 'biome'])
+    test = selected.drop(columns=['lat', 'lon', 'biome',  'treecover2000', 'aridity_delta'])
     test_biomes=selected[['biome']]
-    train= remaining.drop(columns=['lat', 'lon', 'biome'])
+    train= remaining.drop(columns=['lat', 'lon', 'biome', 'treecover2000', 'aridity_delta'])
 
     y=['transformed npp'] 
     X_train=train.drop(columns=y+['PID'])
@@ -166,14 +166,19 @@ if __name__ == "__main__":
                 "Mediterranean woodlands"]
 
 
-    fd_df = pd.read_csv('data/final/final_dataset_with_aridity.csv')
+    fd_df = pd.read_csv('data/final/final_dataset.csv')
+    PID_df= pd.read_csv('data/lookup/PID_location_all.csv')
+    fd_df.drop(columns=['Functional_Richness'], inplace=True)
+    fd_df=fd_df.merge(PID_df[['PID','lat','lon', 'biome']], on='PID', how='left')
 
     fd_df = fd_df[~fd_df["biome"].isin(["Mangroves", "Flooded grasslands"])]
+    fd_df.drop_duplicates(subset=['PID'], inplace=True)
 
-    fd_df.dropna(subset=['Raos_Q', 'Functional_Evenness', 'Soil Moisture',
-                        'Species Richness', 'Shannon Diversity', "Simpson's Index", 'biome'], inplace=True)
+    fd_df.dropna(subset=['transformed npp', 'Raos_Q', 'Functional_Evenness', 'Soil Moisture',
+                        'Species Richness', 'Shannon Diversity', "Simpson's Index", 'biome', "pet_std"], inplace=True)
 
-    fd_df.drop(columns=['ownership'], inplace=True)
+    fd_df = fd_df[fd_df["treecover2000"] > 60]
+
     ecoregions=cval.process_ecoregion("data/Ecoregions/Ecoregions2017.shp")
 
     ecoregions=ecoregions[['ECO_NAME', 'geometry']]
@@ -205,6 +210,7 @@ if __name__ == "__main__":
     for i in range(len(random_keys)):
 
         random_key = random_keys[i]
+        print(fd_df.isna().sum())
         fX_train, fy_train, fX_test, fy_test, test_biomes, scaler = train_test_split_v3(fd_df, random_key=random_key, n_points_to_select=1, buffer_km=50)
 
         # # Create regression matrices

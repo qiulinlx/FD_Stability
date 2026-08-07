@@ -34,33 +34,44 @@ def shannon_diversity(sp_loc):
     shannon_df = pd.DataFrame({"PID": pID, "Shannon Diversity": shannon})
 
     return shannon_df
-
-
 def simpsons_index(sp_loc):
     """
-    Docstring for simpsons_index
+    Calculate basal area weighted Simpson's Diversity Index.
 
-    Measure of Dominance /
+    Parameters
+    ----------
+    sp_loc : pandas.DataFrame
+        Rows = PID, columns = species, values = BA_per_acre.
+
+    Returns
+    -------
+    pandas.DataFrame
+        PID and Simpson's Index.
     """
 
     pID = []
     simpsons = []
 
-    species_PID = sp_loc.apply(lambda row: row.index[row != 0].tolist(), axis=1)
+    for pid, row in sp_loc.iterrows():
 
-    for pid, species in zip(species_PID.index, species_PID):
-        ab = sp_loc[sp_loc.index == pid]
-        ab = ab.to_numpy().flatten()
-        ab = ab[ab > 0]
-        total = sum(x * (x - 1) for x in ab)
-        total = 1 - (total / (ab.sum() * (ab.sum() - 1)))
+        # Keep only species with basal area > 0
+        ba = row[row > 0].values
+
+        # Convert to proportions
+        ba = ba / ba.sum()
+
+        # Simpson diversity (1 - dominance)
+        total = 1 - (ba ** 2).sum()
+
         simpsons.append(total)
         pID.append(pid)
 
-    simpsons_df = pd.DataFrame({"PID": pID, "Simpson's Index": simpsons})
+    simpsons_df = pd.DataFrame({
+        "PID": pID,
+        "Simpson's Index": simpsons
+    })
 
     return simpsons_df
-
 
 def shannon_equitability(sp_loc):
     """
