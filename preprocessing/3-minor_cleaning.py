@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 
-df= pd.read_csv("data/final/final_dataset.csv")
+df= pd.read_csv("data/final/final_dataset_tpa.csv")
 
 
 df = df.rename(columns={'CHELSA_BIO_Annual_Mean_Temperature': 'Annual Temp', 'CHELSA_BIO_Annual_Precipitation': 'Annual Precipitation',
@@ -18,7 +18,7 @@ df = df.loc[:, ~df.columns.str.contains('_y')]
 #                             'biome_x': 'biome',  'TPA_UNADJ_x': 'TPA_UNADJ'})
 
 df['WSCI'] = np.where(df['WSCI'] < -5, 0, df['WSCI'])
-df.drop(columns=["TPA_UNADJ", 'managed', 'DIA','Shannon Equitabiltiy Index', 'ownership'],inplace=True)
+# df.drop(columns=["TPA_UNADJ", 'managed', 'DIA','Shannon Equitabiltiy Index', 'ownership'],inplace=True)
 df.drop_duplicates(subset=['PID'], inplace=True)
 
-df.to_csv("data/final/final_dataset.csv", index=False)
+df.to_csv("data/final/final_dataset_tpa.csv", index=False)
