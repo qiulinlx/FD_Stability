@@ -109,9 +109,9 @@ def train_test_split_v3(df, random_key, n_points_to_select=2, buffer_km=100):
                                    random_seed=random_key)
     
 
-    test = selected.drop(columns=['lat', 'lon', 'biome',  'treecover2000', 'aridity_delta'])
+    test = selected.drop(columns=['lat', 'lon', 'biome',  'treecover2000'])
     test_biomes=selected[['biome']]
-    train= remaining.drop(columns=['lat', 'lon', 'biome', 'treecover2000', 'aridity_delta'])
+    train= remaining.drop(columns=['lat', 'lon', 'biome', 'treecover2000'])
 
     y=['transformed npp'] 
     X_train=train.drop(columns=y+['PID'])
@@ -171,6 +171,11 @@ if __name__ == "__main__":
     fd_df.drop(columns=['Functional_Richness'], inplace=True)
     fd_df=fd_df.merge(PID_df[['PID','lat','lon', 'biome']], on='PID', how='left')
 
+    npp_df=pd.read_csv('data/processed/PID_npp_volatility.csv')
+
+    npp_df=npp_df[['PID', 'mean']]
+
+    fd_df=fd_df.merge(npp_df, on='PID', how='left')
     fd_df = fd_df[~fd_df["biome"].isin(["Mangroves", "Flooded grasslands"])]
     fd_df.drop_duplicates(subset=['PID'], inplace=True)
 
@@ -190,7 +195,7 @@ if __name__ == "__main__":
 
     biome_dfs = {k: v for k, v in fd_df.groupby('biome')}
 
-    random_keys = random.sample(range(1, 100000), 100)  # Generate 10 random keys for reproducibility
+    random_keys = random.sample(range(1, 100000), 1000)  # Generate n random keys for reproducibility
 
     params = {
         "objective": "reg:squarederror",

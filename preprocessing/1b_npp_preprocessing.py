@@ -23,13 +23,13 @@ def cleaning(PID_df, csc_df, npp_df):
 
 def compute_volatility(arr): 
     '''
-    Log of inverse CoV
+    Inverse CoV
     '''
     s=arr.mean()
 
     arr= pd.Series(detrend(arr*10))
     
-    v= s/arr.std()
+    v= (s/arr.std())
     return v , s
 
 df1=pd.read_csv("data/raw/NPP_PIDs_1.csv")
@@ -54,6 +54,6 @@ for pid, arr in grouped.items():
             PID_list.append(pid)
             mean.append(s)
 
-npp_df = pd.DataFrame({'PID': PID_list, 'transformed npp': volatility})
+npp_df = pd.DataFrame({'PID': PID_list, 'transformed npp': volatility, 'mean': mean})
 
 npp_df.to_csv('data/processed/PID_npp_volatility.csv', index=False)

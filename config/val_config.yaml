@@ -1,4 +1,4 @@
-Ydefaults: &defaults
+defaults: &defaults
     objective: "reg:squarederror"
     max_depth: 6
     min_child_weight: 5
