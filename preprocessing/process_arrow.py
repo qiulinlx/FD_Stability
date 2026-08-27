@@ -18,7 +18,7 @@ def load_arrow(filename: str) -> pd.DataFrame:
 if __name__ == "__main__":
 
     folder= "data/FIA_states"
-    PID_locations = 'data/lookup/PID_location_all.csv'
+    PID_locations = 'data/lookup/PID_additional_data_conifer_stdage.csv'
     PID_abundances = 'data/processed/species_abundance_all.csv'
 
 
@@ -39,7 +39,7 @@ if __name__ == "__main__":
     df1=df[['PID', "accepted_bin"]].copy()
     df1.dropna(inplace=True)
 
-    df2= df[['PID', 'LAT', 'LON', 'TPA_UNADJ','managed', 'ownership', 'biome', 'DIA']].copy()
+    df2= df[['PID', 'LAT', 'LON', 'TPA_UNADJ','managed', 'ownership', 'biome', 'DIA', 'SPCD', 'STDAGE']].copy()
     df2.dropna(subset=['LAT', 'LON'], inplace=True)
 
     df2 = df2.rename(columns={

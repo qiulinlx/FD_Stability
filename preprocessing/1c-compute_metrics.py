@@ -49,8 +49,8 @@ if __name__ == "__main__":
 
     species_list = traits['Species'].tolist()
 
-    ba=False
-    stem=True
+    ba=True
+    stem=False
 
     # Preparing Funcional Diversity Data ------------------------------------------------
     folder= "data/FIA_states"
@@ -109,5 +109,5 @@ if __name__ == "__main__":
         i+=1
 
     csv_dir = Path("data/.joined")
-    out_file = "data/final/dataset_tpa.parquet"
+    out_file = "data/final/dataset_ba.parquet"
     merge_files(csv_dir, out_file)
