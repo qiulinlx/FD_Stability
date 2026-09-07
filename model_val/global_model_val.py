@@ -255,7 +255,6 @@ if __name__ == "__main__":
 
     ax_scatter.legend(loc='upper left', fontsize=10)
     plt.tight_layout()
-    plt.savefig('results/global_xgboost_predicted_vs_actual_multiseed.png', dpi=300)
     plt.show()
 
     # ============================================================

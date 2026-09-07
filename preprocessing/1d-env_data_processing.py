@@ -31,7 +31,12 @@ if __name__ == "__main__":
     "EarthEnvTopoMed_Elevation", 
     "EarthEnvTopoMed_Slope",
     "SG_Depth_to_bedrock", 
-    "EarthEnvTopoMed_Northness"
+    "EarthEnvTopoMed_Northness",
+    'SG_CEC_015cm',
+    'SG_Soil_pH_H2O_015cm',
+    'EarthEnvTopoMed_Eastness',
+    "CGIAR_Aridity_Index",
+    "CHELSA_exBIO_GrowingSeasonLength"
     ]
 
     env_df= pd.read_csv('data/raw/Composite.csv')

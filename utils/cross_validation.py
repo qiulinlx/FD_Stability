@@ -1,9 +1,10 @@
 import geopandas as gpd
+import pandas as pd
 import numpy as np
 from shapely.geometry import box
 import random
 from math import radians, sin, cos, sqrt, asin
-
+from sklearn.preprocessing import StandardScaler
 
 def process_ecoregion(path: str):
 
@@ -236,6 +237,74 @@ def select_points_with_buffer(df, n_points, buffer_km=100, lat_col='lat', lon_co
     remaining_df = df.iloc[remaining_points].copy()
     
     return selected_df, remaining_df, removed_df
+
+def select_n_remove_buffer(df,
+                           n=1,
+                                    buffer_km=50,
+                                    lat_col='lat', lon_col='lon',
+                                    random_seed=None):
+    if random_seed is not None:
+        np.random.seed(random_seed)
+
+    selected_idx = np.random.choice(df.index, n, replace=False)[0]
+    selected_point = df.loc[selected_idx]
+    lat_sel = selected_point[lat_col]
+    lon_sel = selected_point[lon_col]
+
+    selected_points = [selected_idx]
+    removed_points = []
+    remaining_points = []
+
+    for idx in df.index:
+        if idx == selected_idx:
+            continue
+        dist = haversine(lat_sel, lon_sel,
+                          df.loc[idx, lat_col],
+                          df.loc[idx, lon_col])
+        if dist <= buffer_km:
+            removed_points.append(idx)
+        else:
+            remaining_points.append(idx)
+
+    selected_df = df.loc[selected_points].copy()
+    removed_df = df.loc[removed_points].copy()
+    remaining_df = df.loc[remaining_points].copy()
+
+    return selected_df, remaining_df, removed_df
+
+
+def train_test_split_v3(df, n, random_key, buffer_km=100):
+    selected, remaining, removed = select_n_remove_buffer(
+        df,n, buffer_km=50, lat_col='lat', lon_col='lon', random_seed=random_key
+    )
+
+    test = selected.drop(columns=['lat', 'lon', 'biome', 'treecover2000'])
+    test_biomes = selected[['biome']]
+    test_pid = selected[['PID']]  # keep track of WHICH point this is
+    train = remaining.drop(columns=['lat', 'lon', 'biome', 'treecover2000'])
+
+    y = ['transformed npp']
+    X_train = train.drop(columns=y + ['PID'])
+    y_train = train['transformed npp'].values
+
+    X_test = test.drop(columns=y + ['PID'])
+    y_test = test['transformed npp'].values
+
+    scaler = StandardScaler()
+    X_train = pd.DataFrame(scaler.fit_transform(X_train), columns=X_train.columns, index=X_train.index)
+    X_test = pd.DataFrame(scaler.transform(X_test), columns=X_test.columns, index=X_test.index)
+
+    return X_train, y_train, X_test, y_test, test_biomes, test_pid, scaler
+
+
+def haversine(lat1, lon1, lat2, lon2):
+    R = 6371
+    lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+    c = 2 * asin(sqrt(a))
+    return R * c
 
 '''
 

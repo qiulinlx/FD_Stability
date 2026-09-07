@@ -39,7 +39,7 @@ Temperate conifer forests:
     reg_lambda: 2.0
     reg_alpha: 0.5
     tree_method: approx
-    n_estimators: 300
+    n_estimators: 1000
     subsample: 0.7
 
   early_stopping_rounds: 20
@@ -84,7 +84,7 @@ Temperate grasslands:
     reg_lambda: 1.0
     reg_alpha: 0.5
     tree_method: approx
-    n_estimators: 250
+    n_estimators: 2500
     subsample: 0.7
   early_stopping_rounds: 15
   description: Regularized with more rounds
@@ -114,7 +114,7 @@ Temperate broadleaf forests:
     reg_lambda: 3.0
     reg_alpha: 0.5
     tree_method: approx
-    n_estimators: 380
+    n_estimators: 1000
     subsample: 0.7
   early_stopping_rounds: 5
   description: NA

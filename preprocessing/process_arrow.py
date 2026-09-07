@@ -36,7 +36,7 @@ if __name__ == "__main__":
                 state_df = pd.read_feather(filepath)
         df = pd.concat([df, state_df], axis=0, ignore_index=True)
 
-    df1=df[['PID', "accepted_bin"]].copy()
+    df1=df[['PID', "accepted_bin", 'TPA_UNADJ', 'DIA']].copy()
     df1.dropna(inplace=True)
 
     df2= df[['PID', 'LAT', 'LON', 'TPA_UNADJ','managed', 'ownership', 'biome', 'DIA', 'SPCD', 'STDAGE']].copy()

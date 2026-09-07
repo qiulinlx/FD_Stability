@@ -25,9 +25,10 @@ def compute_volatility(arr):
     '''
     Inverse CoV
     '''
+
     s=arr.mean()
 
-    arr= pd.Series(detrend(arr*10))
+    arr = pd.Series(detrend(arr))
     
     v= (s/arr.std())
     return v , s
