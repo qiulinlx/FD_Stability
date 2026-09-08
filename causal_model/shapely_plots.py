@@ -233,8 +233,8 @@ fd_df = fd_df.merge(
     PID_df[['PID', 'lat', 'lon', 'biome', 'STDAGE', 'percent_conifer']],
     on='PID', how='left'
 )
-fd_df.drop(columns=['managed', 'ownership', 'DIA', 'TPA_UNADJ', 'Shannon Equitabiltiy Index'], inplace=True)
-fd_df.dropna(subset=['transformed npp', 'Raos_Q', 'Functional_Evenness', 'Soil Moisture',
+fd_df.drop(columns=['Unnamed: 0', 'managed', 'ownership', 'DIA', 'TPA_UNADJ', 'Functional_Richness', 'Shannon Equitabiltiy Index', 'transformed npp'], inplace=True)
+fd_df.dropna(subset=['std npp', 'mean', 'Raos_Q', 'Functional_Evenness', 'Soil Moisture',
                       'Species Richness', 'Shannon Diversity', "Simpson's Index", "pet_std"], inplace=True)
 
 fd_df = fd_df[fd_df["treecover2000"] > 30]
@@ -242,6 +242,9 @@ fd_df.drop_duplicates(subset=['PID'], inplace=True)
 
 fd_df.rename(columns={'mean': 'mean npp', 'pet_std': "PET sd",
                        'land_cover_value': "Land Cover", 'STDAGE': "Stand Age"}, inplace=True)
+
+fd_df['std npp']=np.log1p(fd_df['std npp'])
+fd_df['mean npp']=np.log1p(fd_df['mean npp'])
 
 ecoregions = cval.process_ecoregion("data/Ecoregions/Ecoregions2017.shp")
 ecoregions = ecoregions[['ECO_NAME', 'geometry']]
@@ -251,6 +254,8 @@ fd_df['biome'] = fd_df['biome'].map(biome_mapping)  # Only run this once!
 biome_dfs = {k: v for k, v in fd_df.groupby('biome')}
 
 fd_df = fd_df[fd_df["WSCI"] != 0]
+fd_df.drop(columns=['WSCI'], inplace=True)  # Drop WSCI column after filtering
+
 fd_df = fd_df[fd_df["disturbance_value"] != -2147483648]
 
 params = {
@@ -262,15 +267,17 @@ params = {
     "lambda": 1.0,
     "alpha": 0.0,
     "subsample": 0.7,
-    "tree_method": "hist"
+    "tree_method": "approx"
 }
-n_rounds = 2000
+n_rounds = 500
 
 diversity_vars = ["Species Richness", "Shannon Diversity", "Raos_Q", "Simpson's Index", "Functional_Evenness"]
-target_cols = ['transformed npp', 'mean npp'] + diversity_vars
+target_cols = ['std npp', 'mean npp'] + diversity_vars
 
-exclude_cols = ['PID', 'lat', 'lon', 'biome', 'treecover2000', 'transformed npp', 'mean npp'] + diversity_vars
+exclude_cols = ['PID', 'lat', 'lon', 'biome', 'treecover2000', 'std npp', 'mean npp'] + diversity_vars
 feature_cols = [c for c in fd_df.columns if c not in exclude_cols]
+
+print(feature_cols)
 
 Path('results').mkdir(exist_ok=True)
 

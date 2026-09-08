@@ -17,38 +17,40 @@ def process_ecoregion(path: str):
     ecoregions = ecoregions[ecoregions.intersects(crop_box)].copy()
     return ecoregions
 
-
 def assign_spatial_groups(df, grid_size=1.0):
     df = df.copy()
 
     df["lon_bin"] = (df["lon"] // grid_size) * grid_size
     df["lat_bin"] = (df["lat"] // grid_size) * grid_size
-    
     df["spatial_group"] = (
-        df["biome"].astype(str) + "_" +
         df["lon_bin"].astype(str) + "_" +
         df["lat_bin"].astype(str)
     )
-    
     return df
 
 
-def gridded_cross_validation(df, test_size, batch_size):
+def gridded_cross_validation(df, test_size, batch_size, n_bins=10):
+    """
+    Same as before, but grid_size is derived from n_bins (the number of
+    grid cells to divide the lon/lat extent into) instead of being fixed.
+    """
+    lon_range = df["lon"].max() - df["lon"].min()
+    lat_range = df["lat"].max() - df["lat"].min()
+    grid_size = max(lon_range, lat_range) / n_bins
+
     grouped_df = (
         df
         .groupby("biome", group_keys=False)
-        .apply(assign_spatial_groups, grid_size=5.0)
+        .apply(assign_spatial_groups, grid_size=grid_size)
     )
 
-    # unique groups
-    groups = grouped_df["spatial_group"].unique()
+    # filter out spatial groups that are too small, THEN compute unique groups
     grouped_df = grouped_df.groupby("spatial_group").filter(lambda x: len(x) >= batch_size)
+    groups = grouped_df["spatial_group"].unique()
 
-
-    # number to sample
     n_select = int(len(groups) * test_size)
-
     selected_groups = np.random.choice(groups, size=n_select, replace=False)
+
     test = grouped_df[grouped_df["spatial_group"].isin(selected_groups)]
     train = grouped_df[~grouped_df["spatial_group"].isin(selected_groups)]
     return train, test

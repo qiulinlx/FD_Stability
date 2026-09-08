@@ -31,7 +31,7 @@ def compute_volatility(arr):
     arr = pd.Series(detrend(arr))
     
     v= (s/arr.std())
-    return v , s
+    return v , s, arr.std()
 
 df1=pd.read_csv("data/raw/NPP_PIDs_1.csv")
 df2=pd.read_csv("data/raw/NPP_PIDs_2.csv")
@@ -46,15 +46,20 @@ grouped = grouped[grouped.apply(lambda x: ~np.isnan(x).any())]
 volatility=[]
 PID_list=[]
 mean=[]
+standard_dev=[]
 
 for pid, arr in grouped.items():
     if arr.shape[0] > 5:
         if (arr == 0).sum() < 4: 
-            v , s = compute_volatility(arr)
+            v , s, std= compute_volatility(arr)
+            standard_dev.append(std)
             volatility.append(v)
             PID_list.append(pid)
             mean.append(s)
 
-npp_df = pd.DataFrame({'PID': PID_list, 'transformed npp': volatility, 'mean': mean})
+npp_df = pd.DataFrame({'PID': PID_list, 
+                       'transformed npp': volatility,
+                        'std npp': standard_dev,
+                        'mean': mean})
 
 npp_df.to_csv('data/processed/PID_npp_volatility.csv', index=False)
