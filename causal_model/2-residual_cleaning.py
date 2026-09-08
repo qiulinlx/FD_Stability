@@ -8,7 +8,7 @@ diversity_vars = ["Species Richness", "Shannon Diversity", "Raos_Q", "Simpson's 
 
 # map target name -> desired residual column name
 target_map = {
-    "transformed npp": "residual_stability",
+    "std npp": "residual_std_npp",
     "mean npp": "residual_mean",
     "Species Richness": "residual_species_richness",
     "Shannon Diversity": "residual_shannon",
@@ -23,8 +23,8 @@ for target, col_name in target_map.items():
     sub[col_name] = sub['residual']
     results[target] = sub
 
-# # unpack if you want to keep your old variable names
-env_sd_results = results["transformed npp"]
+# unpack if you want to keep your old variable names
+env_sd_results = results["std npp"]
 env_mean_results = results["mean npp"]
 species_richness_results = results["Species Richness"]
 shannon_results = results["Shannon Diversity"]
@@ -32,14 +32,14 @@ simpsons_results = results["Simpson's Index"]
 raos_q_results = results["Raos_Q"]
 functional_evenness_results = results["Functional_Evenness"]
 
-# keep only seed, PID, and the target-specific residual column
+# keep only PID and the target-specific residual column (no seed anymore — gridded CV)
 dfs_to_merge = []
 for target, col_name in target_map.items():
-    sub = results[target][['seed', 'PID', col_name]]
+    sub = results[target][['PID', col_name]]
     dfs_to_merge.append(sub)
 
 merged = reduce(
-    lambda left, right: pd.merge(left, right, on=['seed', 'PID'], how='outer'),
+    lambda left, right: pd.merge(left, right, on=['PID'], how='outer'),
     dfs_to_merge
 )
 

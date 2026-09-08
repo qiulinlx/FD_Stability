@@ -38,7 +38,7 @@ DIVERSITY_METRICS = {
     "Simpson": "residual_simpsons",
     "Species richness": "residual_species_richness",
 }
-STABILITY_COL = "residual_stability"   # e_sd
+STABILITY_COL = "residual_std_npp"   # e_sd
 MEAN_COL = "residual_mean"             # e_mean
 
 
