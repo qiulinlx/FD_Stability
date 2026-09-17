@@ -78,7 +78,7 @@ random_key=config["random_key"]
 fd_df = pd.read_csv("data/final/final_dataset_ba_v2.csv")
 PID_df= pd.read_csv('data/lookup/PID_location_v3.csv')
 
-fd_df=fd_df.merge(PID_df[['PID','lat','lon', 'biome', 'STDAGE', 'percent_conifer' ]], on='PID', how='left')
+fd_df=fd_df.merge(PID_df[['PID','lat','lon', 'biome', 'STDAGE']], on='PID', how='left')
 
 fd_df.drop(columns=['Unnamed: 0', 'managed', 'ownership', 'DIA', 'TPA_UNADJ','Functional_Richness', 'Shannon Equitabiltiy Index', 'transformed npp'], inplace=True)
 fd_df.dropna(subset=['std npp', 'mean', 'Raos_Q', 'Functional_Evenness', 'Soil Moisture',
@@ -102,8 +102,6 @@ biome_dfs = {k: v for k, v in fd_df.groupby('biome')}
 
 fd_df = fd_df[fd_df["WSCI"] != 0]
 
-fd_df.drop(columns=['WSCI'], inplace=True)  # Drop WSCI column after filtering
-
 fd_df = fd_df[fd_df["disturbance_value"] != -2147483648]
 
 params = {
@@ -117,11 +115,11 @@ params = {
     "subsample": 0.7,
     "tree_method": "hist"
 }
-n_rounds = 500
+n_rounds = 1000
 
 diversity_vars = ["Species Richness", "Shannon Diversity", "Raos_Q", "Simpson's Index", "Functional_Evenness"]
 
-target_cols = ['std npp', 'mean npp'] + diversity_vars
+target_cols = ['std npp', 'mean npp', 'WSCI'] + diversity_vars
 results = {col: [] for col in target_cols}
 
 seed=42
@@ -157,7 +155,7 @@ for group in groups:
                                  "lon_bin", "lat_bin", "spatial_group", 'treecover2000'])
 
 
-    exclude_cols = ['PID', 'std npp', 'mean npp'] + diversity_vars
+    exclude_cols = ['PID', 'std npp', 'mean npp', 'WSCI'] + diversity_vars
     feature_cols = [c for c in train.columns if c not in exclude_cols]
 
 

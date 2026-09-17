@@ -230,7 +230,7 @@ fd_df = pd.read_csv("data/final/final_dataset_ba_v2.csv")
 PID_df = pd.read_csv('data/lookup/PID_location_v3.csv')
 
 fd_df = fd_df.merge(
-    PID_df[['PID', 'lat', 'lon', 'biome', 'STDAGE', 'percent_conifer']],
+    PID_df[['PID', 'lat', 'lon', 'biome', 'STDAGE']],
     on='PID', how='left'
 )
 fd_df.drop(columns=['Unnamed: 0', 'managed', 'ownership', 'DIA', 'TPA_UNADJ', 'Functional_Richness', 'Shannon Equitabiltiy Index', 'transformed npp'], inplace=True)

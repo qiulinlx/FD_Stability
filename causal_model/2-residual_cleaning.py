@@ -10,6 +10,7 @@ diversity_vars = ["Species Richness", "Shannon Diversity", "Raos_Q", "Simpson's 
 target_map = {
     "std npp": "residual_std_npp",
     "mean npp": "residual_mean",
+    "WSCI": "residual_wsci",
     "Species Richness": "residual_species_richness",
     "Shannon Diversity": "residual_shannon",
     "Simpson's Index": "residual_simpsons",
@@ -26,6 +27,7 @@ for target, col_name in target_map.items():
 # unpack if you want to keep your old variable names
 env_sd_results = results["std npp"]
 env_mean_results = results["mean npp"]
+wsci_results = results["WSCI"]
 species_richness_results = results["Species Richness"]
 shannon_results = results["Shannon Diversity"]
 simpsons_results = results["Simpson's Index"]
@@ -43,4 +45,4 @@ merged = reduce(
     dfs_to_merge
 )
 
-merged.to_csv('results/step_2_residuals_merged.csv', index=False)
+merged.to_csv('results/step_2_residuals_merged2.csv', index=False)
