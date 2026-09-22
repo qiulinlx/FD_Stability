@@ -293,7 +293,7 @@ for target_col in target_cols:
     shap_dfs[target_col] = shap_df
 
     safe_name = target_col.replace(" ", "_").replace("'", "")
-    shap_df.to_csv(f'results/shap_values_{safe_name}.csv', index=False)
+    shap_df.to_csv(f'results/shap_values/shap_values_{safe_name}.csv', index=False)
 
     for feat in feature_cols:
         importance_rows.append({
@@ -316,6 +316,6 @@ for target_col, shap_df in shap_dfs.items():
         shap_df,
         features=feature_cols,
         group=target_col,
-        name=f"results/shap_dependence_{safe_name}.png",
+        name=None,
     )
     print(f"{target_col}: LOWESS slopes/zero-crossings computed for {len(feature_cols)} features")

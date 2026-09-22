@@ -407,8 +407,8 @@ y_axis_limits = {
     'CGIAR_Aridity_Index': (-0.05, 0.05),
 }
 
-features=['percent_conifer', 'Annual Temp', 'CHELSA_exBIO_GrowingSeasonLength', 
-        'Precipitation Seasonality', 'CGIAR_Aridity_Index']
+features=['Precipitation Seasonality', 'Elevation', 
+        'Stand Age', 'PET sd', 'Annual Temp']
 
 
 

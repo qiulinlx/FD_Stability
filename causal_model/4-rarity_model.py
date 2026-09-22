@@ -105,7 +105,7 @@ HEATMAP_GRIDSIZE = 70                # hexbin resolution -- higher = finer detai
 # Multi-segment overlay comparison plot (plot_group_comparison) still uses
 # scatter -- several overlapping heatmaps in different colors get muddy
 # fast, so that figure keeps points instead.
-SHOW_SCATTER = False                       # True = scatter points, False = no points (just the fitted lines)
+SHOW_SCATTER = True                       # True = scatter points, False = no points (just the fitted lines)
 SCATTER_ALPHA = 0.8
 SCATTER_SIZE = 2
 
