@@ -38,6 +38,10 @@ df2=pd.read_csv("data/raw/NPP_PIDs_2.csv")
 
 npp_df=pd.concat([df1, df2], ignore_index=True)
 
+key = ["PID", "year", 'NPP_kgC_m2_yr']
+
+npp_df = npp_df.drop_duplicates(subset=key, keep="first")
+
 npp_df.rename(columns={'NPP_kgC_m2_yr': "Npp"}, inplace=True)
 
 grouped = npp_df.groupby('PID').apply(lambda x: x.sort_values('year')['Npp'].to_numpy())

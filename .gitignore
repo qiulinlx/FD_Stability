@@ -11,3 +11,5 @@ scratch_notebook.ipynb
 /figures
 *scratch.ipynb
 /disturbance_extraction
+/results
+/shap_results

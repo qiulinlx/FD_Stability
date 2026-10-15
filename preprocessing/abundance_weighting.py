@@ -151,5 +151,5 @@ if __name__ == "__main__":
             i += 1
 
     csv_dir = Path("data/.joined")
-    out_file = "data/final/dataset_relba_10.parquet"
+    out_file = "data/final/dataset_rarity.parquet"
     merge_files(csv_dir, out_file)

@@ -1,5 +1,5 @@
 // ============================================================
-// MODIS Annual NPP extraction for PID points, 2010–2020
+// MODIS Annual NPP extraction for PID points, for some time period
 // MODIS product: MOD17A3HGF v061 — Annual Net Primary Production
 // Units: kg C/m²/yr (scale factor 0.0001 applied)
 // Input table columns: PID, lat, lon, BHAGE, managed, ownership, biome
@@ -27,7 +27,7 @@ var nppCollection = ee.ImageCollection('MODIS/061/MOD17A3HGF')
   .select('Npp');
 
 // --- 4. Extract NPP per point per year ---
-var years = ee.List.sequence(2010, 2020);
+var years = ee.List.sequence(2006, 2024);
 
 var results = years.map(function(year) {
   year = ee.Number(year);
@@ -67,8 +67,8 @@ var output = ee.FeatureCollection(results).flatten();
 // --- 6. Export to Google Drive as CSV ---
 Export.table.toDrive({
   collection: output,
-  description: 'MODIS_NPP_2010_2020_PIDs',
+  description: 'MODIS_NPP_2006_2024_PIDs_2',
   folder: 'GEE_exports',           // optional: specify a Drive folder
   fileFormat: 'CSV',
   selectors: ['PID', 'lat', 'lon', 'year', 'NPP_kgC_m2_yr']
-}); 
+});

@@ -73,18 +73,21 @@ with open("config/ex_config.yaml", "r") as f:
 biome_mapping = config["biome_mapping"]
 random_key=config["random_key"]
 
-
 # Data Cleaning and Preprocessing
-fd_df = pd.read_csv("data/final/final_dataset_ba_v2.csv")
+fd_df = pd.read_csv("data/final/final_dataset_ba.csv")
 PID_df= pd.read_csv('data/lookup/PID_location_v3.csv')
+abundance_df = pd.read_parquet('data/final/dataset_relba_10.parquet')
+
 
 fd_df=fd_df.merge(PID_df[['PID','lat','lon', 'biome', 'STDAGE']], on='PID', how='left')
+
+fd_df=fd_df.merge(abundance_df[['PID','pct_rare_species']], on='PID', how='left')
 
 fd_df.drop(columns=['Unnamed: 0', 'managed', 'ownership', 'DIA', 'TPA_UNADJ','Functional_Richness', 'Shannon Equitabiltiy Index', 'transformed npp'], inplace=True)
 fd_df.dropna(subset=['std npp', 'mean', 'Raos_Q', 'Functional_Evenness', 'Soil Moisture',
                       'Species Richness', 'Shannon Diversity', "Simpson's Index", "pet_std"], inplace=True)
 
-fd_df = fd_df[fd_df["treecover2000"] > 30]
+fd_df = fd_df[fd_df["treecover2000"] > 10]
 fd_df.drop_duplicates(subset=['PID'], inplace=True)
 
 fd_df.rename(columns={'mean':'mean npp', 'pet_std': "PET sd", 'land_cover_value': "Land Cover", 'STDAGE': "Stand Age"}, inplace=True)
@@ -119,7 +122,7 @@ n_rounds = 1000
 
 diversity_vars = ["Species Richness", "Shannon Diversity", "Raos_Q", "Simpson's Index", "Functional_Evenness"]
 
-target_cols = ['std npp', 'mean npp', 'WSCI'] + diversity_vars
+target_cols = ['std npp', 'WSCI', "pct_rare_species"] + diversity_vars
 results = {col: [] for col in target_cols}
 
 seed=42
@@ -155,7 +158,7 @@ for group in groups:
                                  "lon_bin", "lat_bin", "spatial_group", 'treecover2000'])
 
 
-    exclude_cols = ['PID', 'std npp', 'mean npp', 'WSCI'] + diversity_vars
+    exclude_cols = ['PID', 'std npp', "pct_rare_species", 'WSCI'] + diversity_vars
     feature_cols = [c for c in train.columns if c not in exclude_cols]
 
 
@@ -180,5 +183,5 @@ all_results_df = pd.concat(
     ignore_index=True
 )
 
-all_results_df.to_csv('results/step_1_residuals.csv', index=False)
+all_results_df.to_csv('results/step_1_residuals4_rarity.csv', index=False)
 

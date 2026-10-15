@@ -21,6 +21,20 @@ try:
 except ImportError:
     HAS_LOWESS = False
 
+# ------------------------------------------------------------------
+# Colours per target (matched to the SHAP importance figure).
+# Simpson's Index and the NPP targets weren't in that figure, so
+# those three colours are new picks -- change freely.
+# ------------------------------------------------------------------
+TARGET_COLORS = {
+    "Functional_Evenness": "#9975BA",   # muted purple
+    "Raos_Q":              "#4A16D8",   # deep indigo
+    "Shannon Diversity":   "#7DDFE7",   # light cyan
+    "Species Richness":    "#16D2B8",   # teal
+}
+
+N_PERM_REPEATS = 5   # shuffles per feature for permutation importance
+
 
 def _lowess_slope_and_zero(x_smooth, y_smooth):
     """
@@ -191,9 +205,12 @@ def plot_shap_with_line_stats_v4(
 def fit_and_get_shap(df, target_col, feature_cols, params, n_rounds):
     """
     Fit an XGBoost model on the full dataset for target_col, then compute
-    native XGBoost SHAP contributions for every row. Returns a wide-format
-    DataFrame: PID, target_col, feature columns (unscaled), shap_<feature>
-    columns, and bias term.
+    native XGBoost SHAP contributions for every row. Returns:
+      model  : the trained Booster
+      out    : wide-format DataFrame (PID, target, unscaled features,
+               shap_<feature> columns, bias)
+      X_s    : the standardised feature matrix the model was trained on
+               (needed for permutation importance)
     """
     X = df[feature_cols]
     y = df[target_col].values
@@ -215,7 +232,127 @@ def fit_and_get_shap(df, target_col, feature_cols, params, n_rounds):
         out[f"shap_{feat}"] = shap_values[:, i]
     out['bias'] = bias
 
-    return model, out
+    return model, out, X_s
+
+
+# ------------------------------------------------------------------
+# Gain ("Gini-style") and permutation importance
+# ------------------------------------------------------------------
+def gain_importance(model, feature_cols, normalize=True):
+    """
+    Impurity-style importance for an XGBoost model: the total reduction in
+    the loss (squared error) contributed by every split on each feature
+    ('total_gain'). This is XGBoost's equivalent of Gini/impurity importance
+    in random forests. Features never used in a split get 0.
+    If normalize=True, values are each feature's SHARE of the model's total
+    gain (sums to 1), which makes targets with different scales comparable.
+    """
+    raw = model.get_score(importance_type="total_gain")
+    vals = np.array([raw.get(f, 0.0) for f in feature_cols], dtype=float)
+    if normalize and vals.sum() > 0:
+        vals = vals / vals.sum()
+    return dict(zip(feature_cols, vals))
+
+
+def permutation_importance_booster(model, X_s, y, n_repeats=N_PERM_REPEATS, seed=42):
+    """
+    Permutation importance for a trained xgboost Booster.
+    For each feature, shuffle its column `n_repeats` times, re-predict, and
+    record the DROP IN R² relative to the unshuffled baseline. Larger drop =
+    the model relies more on that feature. Using R² (rather than raw MSE)
+    puts every target on a comparable, scale-free footing.
+    Returns {feature: (mean_drop, sd_drop)}.
+    """
+    rng = np.random.default_rng(seed)
+    y = np.asarray(y, dtype=float)
+    ss_tot = np.sum((y - y.mean()) ** 2)
+
+    def _r2(pred):
+        return 1.0 - np.sum((y - pred) ** 2) / ss_tot
+
+    base = _r2(model.predict(xgb.DMatrix(X_s, enable_categorical=True)))
+
+    X_perm = X_s.copy()
+    out = {}
+    for feat in X_s.columns:
+        original = X_s[feat].values.copy()
+        drops = []
+        for _ in range(n_repeats):
+            X_perm[feat] = rng.permutation(original)
+            pred = model.predict(xgb.DMatrix(X_perm, enable_categorical=True))
+            drops.append(base - _r2(pred))
+        X_perm[feat] = original
+        out[feat] = (float(np.mean(drops)), float(np.std(drops)))
+    return out
+
+
+# ------------------------------------------------------------------
+# Horizontal grouped-bar importance figure
+# ------------------------------------------------------------------
+def plot_importance_grouped_horizontal(
+    imp_df,
+    value_col,
+    xlabel,
+    title,
+    savepath=None,
+    targets=None,
+    top_n=None,
+    err_col=None,
+    colors=TARGET_COLORS,
+):
+    """
+    Horizontal grouped bars: one group per feature (most important at the
+    top), one bar per target inside each group, coloured by target.
+    imp_df is long-format with columns: target, feature, <value_col>
+    (and optionally <err_col> for error bars).
+    """
+    df = imp_df.copy()
+    if targets is None:
+        targets = list(dict.fromkeys(df["target"]))
+    df = df[df["target"].isin(targets)]
+
+    order = df.groupby("feature")[value_col].sum().sort_values(ascending=False)
+    if top_n:
+        order = order.head(top_n)
+    features = list(order.index)
+
+    n_f, n_t = len(features), len(targets)
+    bar_h = 0.8 / n_t
+
+    fig, ax = plt.subplots(figsize=(9, max(4.0, 0.62 * n_f + 1.8)))
+
+    for i, t in enumerate(targets):
+        sub = df[df["target"] == t].set_index("feature").reindex(features)
+        vals = sub[value_col].fillna(0).values
+        ypos = np.arange(n_f) + (i - (n_t - 1) / 2) * bar_h
+        xerr = sub[err_col].fillna(0).values if err_col else None
+        ax.barh(
+            ypos, vals, height=bar_h,
+            color=colors.get(t, "#888888"), label=t,
+            xerr=xerr,
+            error_kw=dict(ecolor="#444444", elinewidth=0.8, capsize=1.5),
+        )
+
+    ax.set_yticks(np.arange(n_f))
+    ax.set_yticklabels(features)
+    ax.invert_yaxis()                      # most important feature at the top
+    ax.axvline(0, color="#333333", linewidth=0.8)
+    ax.set_xlabel(xlabel)
+    ax.grid(axis="x", color="#eeeeee", linewidth=0.6)
+    ax.set_axisbelow(True)
+    for spine in ["top", "right"]:
+        ax.spines[spine].set_visible(False)
+
+    full_title = title
+    ax.set_title(full_title, fontsize=11)
+    ax.legend(title="Target", loc="lower right", frameon=False)
+
+    fig.tight_layout()
+    if savepath:
+        Path(savepath).parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(savepath, dpi=300, bbox_inches="tight")
+        fig.savefig(str(Path(savepath).with_suffix(".pdf")), bbox_inches="tight")
+    return fig
 
 
 with open("config/ex_config.yaml", "r") as f:
@@ -237,14 +374,14 @@ fd_df.drop(columns=['Unnamed: 0', 'managed', 'ownership', 'DIA', 'TPA_UNADJ', 'F
 fd_df.dropna(subset=['std npp', 'mean', 'Raos_Q', 'Functional_Evenness', 'Soil Moisture',
                       'Species Richness', 'Shannon Diversity', "Simpson's Index", "pet_std"], inplace=True)
 
-fd_df = fd_df[fd_df["treecover2000"] > 30]
+fd_df = fd_df[fd_df["treecover2000"] > 10]
 fd_df.drop_duplicates(subset=['PID'], inplace=True)
 
 fd_df.rename(columns={'mean': 'mean npp', 'pet_std': "PET sd",
                        'land_cover_value': "Land Cover", 'STDAGE': "Stand Age"}, inplace=True)
 
-fd_df['std npp']=np.log1p(fd_df['std npp'])
-fd_df['mean npp']=np.log1p(fd_df['mean npp'])
+fd_df['std npp'] = np.log1p(fd_df['std npp'])
+fd_df['mean npp'] = np.log1p(fd_df['mean npp'])
 
 ecoregions = cval.process_ecoregion("data/Ecoregions/Ecoregions2017.shp")
 ecoregions = ecoregions[['ECO_NAME', 'geometry']]
@@ -271,29 +408,38 @@ params = {
 }
 n_rounds = 500
 
-diversity_vars = ["Species Richness", "Shannon Diversity", "Raos_Q", "Simpson's Index", "Functional_Evenness"]
-target_cols = ['std npp', 'mean npp'] + diversity_vars
+diversity_vars = ["Shannon Diversity", "Raos_Q", "Functional_Evenness", "Species Richness"]
+target_cols = diversity_vars
 
-exclude_cols = ['PID', 'lat', 'lon', 'biome', 'treecover2000', 'std npp', 'mean npp'] + diversity_vars
+exclude_cols = ['PID', 'lat', 'lon', 'biome', 'treecover2000', 'std npp', 'mean npp',  "Simpson's Index"] + diversity_vars
 feature_cols = [c for c in fd_df.columns if c not in exclude_cols]
 
 print(feature_cols)
 
-Path('results').mkdir(exist_ok=True)
+Path('results/shap_values').mkdir(parents=True, exist_ok=True)
+Path('results/figures').mkdir(parents=True, exist_ok=True)
 
 # ------------------------------------------------------------------
-# Fit once per target on the full dataset, compute SHAP for every row
+# Fit once per target on the full dataset; compute SHAP for every row,
+# plus gain and permutation importance from the same model.
 # ------------------------------------------------------------------
 shap_dfs = {}
-importance_rows = []
+importance_rows = []   # mean |SHAP|
+gain_rows = []         # normalised total gain
+perm_rows = []         # permutation importance (drop in R²)
 
 for target_col in target_cols:
     print(f"Fitting {target_col}...")
-    model, shap_df = fit_and_get_shap(fd_df, target_col, feature_cols, params, n_rounds)
+    model, shap_df, X_s = fit_and_get_shap(fd_df, target_col, feature_cols, params, n_rounds)
     shap_dfs[target_col] = shap_df
 
     safe_name = target_col.replace(" ", "_").replace("'", "")
     shap_df.to_csv(f'results/shap_values/shap_values_{safe_name}.csv', index=False)
+
+    gain = gain_importance(model, feature_cols, normalize=True)
+    perm = permutation_importance_booster(
+        model, X_s, fd_df[target_col].values, n_repeats=N_PERM_REPEATS
+    )
 
     for feat in feature_cols:
         importance_rows.append({
@@ -301,21 +447,88 @@ for target_col in target_cols:
             'feature': feat,
             'mean_abs_shap': shap_df[f'shap_{feat}'].abs().mean(),
         })
+        gain_rows.append({
+            'target': target_col,
+            'feature': feat,
+            'gain_importance': gain[feat],
+        })
+        perm_rows.append({
+            'target': target_col,
+            'feature': feat,
+            'perm_importance': perm[feat][0],
+            'perm_importance_sd': perm[feat][1],
+        })
 
 importance_df = pd.DataFrame(importance_rows).sort_values(
     ['target', 'mean_abs_shap'], ascending=[True, False]
 )
+
+importance_df['shap_share'] = (
+    importance_df['mean_abs_shap']
+    / importance_df.groupby('target')['mean_abs_shap'].transform('sum')
+)
+
+gain_df = pd.DataFrame(gain_rows).sort_values(
+    ['target', 'gain_importance'], ascending=[True, False]
+)
+perm_df = pd.DataFrame(perm_rows).sort_values(
+    ['target', 'perm_importance'], ascending=[True, False]
+)
+
 importance_df.to_csv('results/shap_feature_importance.csv', index=False)
+gain_df.to_csv('results/gain_feature_importance.csv', index=False)
+perm_df.to_csv('results/permutation_feature_importance.csv', index=False)
 
 # ------------------------------------------------------------------
-# SHAP dependence plots, one figure per target
+# Importance figures (horizontal grouped bars, coloured by target)
 # ------------------------------------------------------------------
-for target_col, shap_df in shap_dfs.items():
-    safe_name = target_col.replace(" ", "_").replace("'", "")
-    slopes, zeros = plot_shap_with_line_stats_v4(
-        shap_df,
-        features=feature_cols,
-        group=target_col,
-        name=None,
-    )
-    print(f"{target_col}: LOWESS slopes/zero-crossings computed for {len(feature_cols)} features")
+plot_targets = diversity_vars          # drop e.g. "Simpson's Index" here to match your earlier figure
+
+plot_importance_grouped_horizontal(
+    importance_df, value_col="shap_share",
+    xlabel="Share of total mean |SHAP|",
+    title="SHAP Feature Importance by Environmental Variable, Grouped by Target",
+    savepath="results/figures/importance_shap.png",
+    targets=plot_targets,
+)
+plot_importance_grouped_horizontal(
+    gain_df, value_col="gain_importance",
+    xlabel="Gain importance (share of total gain)",
+    title="Gain (Gini-style) Feature Importance by Environmental Variable, Grouped by Target",
+    savepath="results/figures/importance_gain.png",
+    targets=plot_targets, 
+)
+
+plot_importance_grouped_horizontal(
+    perm_df, value_col="perm_importance", err_col="perm_importance_sd",
+    xlabel="Permutation importance (drop in R$^2$)",
+    title="Permutation Feature Importance by Environmental Variable, Grouped by Target",
+    savepath="results/figures/importance_permutation.png",
+    targets=plot_targets,
+)
+
+TOP_N = 8
+
+# Importance bar chart: top 8 features (ranked by summed share across targets)
+plot_importance_grouped_horizontal(
+    importance_df, value_col="shap_share",
+    xlabel="Share of total mean |SHAP|",
+    title=f"SHAP Feature Importance (Top {TOP_N}), Grouped by Target",
+    savepath=f"results/figures/importance_shap_top{TOP_N}.png",
+    targets=plot_targets,
+    top_n=TOP_N,
+)
+
+
+# # ------------------------------------------------------------------
+# # SHAP dependence plots, one figure per target
+# # ------------------------------------------------------------------
+# for target_col, shap_df in shap_dfs.items():
+#     safe_name = target_col.replace(" ", "_").replace("'", "")
+#     slopes, zeros = plot_shap_with_line_stats_v4(
+#         shap_df,
+#         features=feature_cols,
+#         group=target_col,
+#         name=None,
+#     )
+#     print(f"{target_col}: LOWESS slopes/zero-crossings computed for {len(feature_cols)} features")
