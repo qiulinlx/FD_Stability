@@ -104,7 +104,6 @@ fd_df['biome'] = fd_df['biome'].map(biome_mapping) # Only run this once !
 biome_dfs = {k: v for k, v in fd_df.groupby('biome')}
 
 fd_df = fd_df[fd_df["WSCI"] != 0]
-
 fd_df = fd_df[fd_df["disturbance_value"] != -2147483648]
 
 params = {
