@@ -75,7 +75,7 @@ from scipy import stats
 RESIDUALS_PATH = "results/step_2_residuals_merged.csv"
 
 # Output directory (all outputs below are written here)
-OUTDIR = "results/deciduous"
+OUTDIR = "results"
 
 # Output file names. "{moderator}" is replaced by the moderator name in lower case.
 OUT_SUMMARY = "moderation_summary.csv"
@@ -109,6 +109,7 @@ STABILITY_COL = "residual_std_npp"   # Y~
 MODERATORS = {
     "WSCI": "residual_wsci",
     "Rarity": "residual_pct_rare_species",
+    "Conifer": "percent_conifer"
 }
 
 # ---------------------------------------------------------------
@@ -756,7 +757,7 @@ if __name__ == "__main__":
     PID_df= pd.read_csv('data/lookup/PID_location_v3.csv')
     residuals_df=residuals_df.merge(PID_df[['PID', 'STDAGE', 'percent_conifer']], on='PID', how='left')
 
-    residuals_df=residuals_df[residuals_df.percent_conifer < 40]
+    # residuals_df=residuals_df[residuals_df.percent_conifer < 10]
 
     marginal, summary = run_moderation_analysis(residuals_df)
     plt.show()

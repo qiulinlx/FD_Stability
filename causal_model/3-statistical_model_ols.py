@@ -1,34 +1,3 @@
-"""
-DML final-stage (target model) estimates of the effect of diversity on
-NPP variability, consistent with the equations
-
-  Individual effect (Eq. individual_effect), one model per metric j:
-      S~ = theta_j * D~_j + eps
-
-  Mutually adjusted (Eq. mutually_adjusted), one model with all metrics:
-      S~ = sum_j theta_j * D~_j + eps
-
-where S~ is the residualised stability outcome (STABILITY_COL) and D~_j
-the residualised diversity metrics (DIVERSITY_METRICS), both produced by
-the cross-fitted XGBoost nuisance models.
-
-INPUTS / OUTPUTS
-  All input paths, the output directory and every output file name are
-  defined in the "Input and output files" block directly below the
-  imports. Figures are saved as PNG plus a sibling PDF with the same stem.
-
-NOTES
-  * No intercept (INCLUDE_INTERCEPT = False), matching both equations.
-  * R^2 is the CENTRED R^2 (statsmodels reports an uncentred R^2 when
-    there is no intercept).
-  * HC3 robust standard errors.
-  * The outcome is on the log scale (log1p of NPP SD), so
-    % change = 100 * (exp(theta_j * sd(D~_j)) - 1).
-  * REPORT_AS_STABILITY = True flips the outcome's sign, so all thetas,
-    CIs, % changes, CSVs and plots are in terms of stability (inverse SD):
-    positive = diversity drives NPP SD down.
-"""
-
 import os
 import numpy as np
 import pandas as pd
@@ -39,34 +8,52 @@ from statsmodels.stats.outliers_influence import variance_inflation_factor
 from statsmodels.stats.multitest import multipletests
 from statsmodels.tools.tools import add_constant
 from scipy import stats
+import sys
+# from pathlib import Path
+
+# sys.path.append(str(Path(__file__).resolve().parents[1]))
+
+# import warnings
+
+# from utils.visualisation_utils import _save_publication_figure
 
 # ===============================================================
 # Input and output files  (edit names here only)
 # ===============================================================
+
+# Conifer-gradient outputs (uses ALL plots)
+OUT_GRADIENT_DIR = "results"
+OUT_CONIFER_GRADIENT = "effects_vs_percent_conifer.csv"
+OUT_CONIFER_INTERACTION = "conifer_interaction_tests.csv"
+OUT_CONIFER_GRADIENT_FIG = "effects_vs_percent_conifer.png"
+
+CONIFER_COL = "percent_conifer"
+CONIFER_WINDOW_WIDTH = 20   # percentage points per window
+CONIFER_WINDOW_STEP = 5     # slide step
+CONIFER_MIN_N = 50          # skip windows with fewer plots
 
 # Inputs
 RAW_DATA_PATH = "data/final/final_dataset_ba.csv"
 RESIDUALS_PATH = "results/step_2_residuals_merged.csv"
 
 # Output directory
-OUTDIR = "results/deciduous"
+OUTDIR = "results"  # all outputs below are written here
 
-# Individual-effect model outputs
+# Individual-effect model outputs (no figure)
 OUT_INDIVIDUAL_EFFECTS = "individual_effects.csv"
 OUT_INDIVIDUAL_PER_OBS = "individual_effects_per_observation.csv"
 OUT_INDIVIDUAL_SCENARIOS = "individual_scenario_effects.csv"
-OUT_INDIVIDUAL_RANKING_FIG = "ranking_individual.png"          # + .pdf sibling
 
 # Mutually adjusted model outputs
 OUT_ADJUSTED_EFFECTS = "mutually_adjusted_effects.csv"
 OUT_ADJUSTED_VIF = "mutually_adjusted_vif.csv"
 OUT_ADJUSTED_PER_OBS = "mutually_adjusted_effects_per_observation.csv"
 OUT_ADJUSTED_SCENARIOS = "mutually_adjusted_scenario_effects.csv"
-OUT_ADJUSTED_RANKING_FIG = "ranking_mutually_adjusted.png"     # + .pdf sibling
+OUT_ADJUSTED_RANKING_FIG = "ranking_mutually_adjusted.png"
 
 # Relative importance (LMG) outputs
 OUT_RELATIVE_IMPORTANCE = "relative_importance.csv"
-OUT_RELATIVE_IMPORTANCE_FIG = "relative_importance.png"        # + .pdf sibling
+OUT_RELATIVE_IMPORTANCE_FIG = "relative_importance.png"
 
 
 def _out(outdir, filename):
@@ -104,32 +91,44 @@ mpl.rcParams.update({
     "ps.fonttype": 42,
 })
 
-COLOR_POS = "#7ddfe7"   # light blue: increases stability (drives NPP SD down)
-COLOR_NEG = "#4910d8"   # purple: decreases stability (drives NPP SD up)
-
 
 def _save_publication_figure(fig, savepath_png):
-    """Saves the figure as a 300 dpi PNG and a sibling vector PDF (skipped if savepath is None)."""
     if savepath_png is None:
         return
     fig.savefig(savepath_png, dpi=300, bbox_inches="tight")
-    savepath_pdf = os.path.splitext(savepath_png)[0] + ".pdf"
-    fig.savefig(savepath_pdf, bbox_inches="tight")
-    print(f"  Saved {savepath_png} and {savepath_pdf}")
+    # savepath_pdf = os.path.splitext(savepath_png)[0] + ".pdf"
+    # fig.savefig(savepath_pdf, bbox_inches="tight")
+    print(f"  Saved {savepath_png}")
 
 
-# ---------------------------------------------------------------
-# Column names
-# ---------------------------------------------------------------
+COLOR_POS = "#7ddfe7"   # light blue: increases stability (drives NPP SD down)
+COLOR_NEG = "#4910d8"   # purple: decreases stability (drives NPP SD up)
+
+# Per-metric colours (used in the conifer-gradient figure)
+METRIC_COLORS = {
+    "Rao's Q": "#4910D8",
+    "Functional Evenness": "#9975BA",
+    "Shannon": "#27B453",
+    "Species richness": "#43D9DC",
+}
 
 DIVERSITY_METRICS = {
     "Rao's Q": "residual_raos_q",
     "Functional Evenness": "residual_functional_evenness",
-    "Shannon": "residual_shannon",
+    # "Shannon": "residual_shannon",
     "Species richness": "residual_species_richness",
 }
 STABILITY_COL = "residual_std_npp"   # S~
 PID_COL = "PID"
+
+CI_ALPHA = 0.05
+FDR_ALPHA = 0.05
+JOINT_VIF_WARN_THRESHOLD = 10
+
+NET_EFFECT_SCALE = "sum_abs"
+
+N_BOOT_LMG = 200            # bootstrap resamples for LMG share CIs (0 to skip)
+RANDOM_SEED = 42
 
 # ---------------------------------------------------------------
 # Model settings (keep consistent with the equations)
@@ -143,35 +142,17 @@ OUTCOME_SIGN = -1 if REPORT_AS_STABILITY else 1
 # Raw (un-residualised) data, used for the percentile scenario contrasts.
 raw_df = pd.read_csv(RAW_DATA_PATH)
 
-PID_df= pd.read_csv('data/lookup/PID_location_v3.csv')
-raw_df=raw_df.merge(PID_df[['PID', 'STDAGE', 'percent_conifer']], on='PID', how='left')
+PID_df = pd.read_csv("data/lookup/PID_location_v3.csv")
+raw_df = raw_df.merge(PID_df[["PID", "STDAGE", "percent_conifer"]], on="PID", how="left")
 
-raw_df.drop(columns=['Unnamed: 0', 'managed', 'ownership', 'DIA', 'TPA_UNADJ', "Simpson's Index",
-                     'Functional_Richness', 'Shannon Equitabiltiy Index', 'transformed npp'],
+raw_df.drop(columns=["Unnamed: 0", "managed", "ownership", "DIA", "TPA_UNADJ", "Simpson's Index",
+                     "Functional_Richness", "Shannon Equitabiltiy Index", "transformed npp"],
             inplace=True, errors="ignore")
-raw_df.dropna(subset=['std npp', 'mean', 'Raos_Q', 'Functional_Evenness', 'Soil Moisture',
-                      'Species Richness', 'Shannon Diversity', "pet_std"],
+raw_df.dropna(subset=["std npp", "mean", "Raos_Q", "Functional_Evenness", "Soil Moisture",
+                      "Species Richness", "Shannon Diversity", "pet_std"],
               inplace=True)
 
-raw_df=raw_df[raw_df.percent_conifer > 60]
-
-CI_ALPHA = 0.05
-FDR_ALPHA = 0.05
-JOINT_VIF_WARN_THRESHOLD = 10
-
-# Scale for the two ranking charts: each metric's effect as a % of the NET
-# effect of diversity on stability.
-#   "sum_abs"     : net = sum over metrics of |% change per 1 SD| from the
-#                   same model, so each bar is a signed share of the total
-#                   magnitude (|bars| sum to 100%). Always well defined.
-#   "joint_shift" : net = % change in stability when ALL metrics increase
-#                   by 1 SD together, from the mutually adjusted model.
-#                   Unstable if opposing effects cancel (net close to 0).
-NET_EFFECT_SCALE = "sum_abs"
-
-# Relative importance (share of the net diversity effect)
-N_BOOT_LMG = 200            # bootstrap resamples for LMG share CIs (0 to skip)
-RANDOM_SEED = 42
+# raw_df = raw_df[raw_df.percent_conifer > 60]
 
 # ---------------------------------------------------------------
 # Ecological scenarios
@@ -318,12 +299,12 @@ def _net_label(suffix=""):
     if NET_EFFECT_SCALE == "joint_shift":
         base = "Effect as % of net diversity effect\n(all metrics +1 SD together)"
     else:
-        base = "Effect as % of net diversity effect\n(sum of absolute effects)"
+        base = "Effect as % of net diversity effect"
     return base + suffix
 
 
 def _plot_ranking_bar(sub, xlabel, title, savepath, col="theta_pct", decimals=2):
-    """Shared horizontal ranking bar chart for individual and mutually adjusted effects."""
+    """Horizontal ranking bar chart (used for the mutually adjusted effects)."""
     sub = sub.assign(_abs=sub[col].abs()).sort_values("_abs").reset_index(drop=True)
     lo_col, hi_col = f"{col}_ci_lower", f"{col}_ci_upper"
 
@@ -420,6 +401,152 @@ def compute_effects_dataframe(df, all_results, diversity_metrics=DIVERSITY_METRI
     return pd.DataFrame(rows)
 
 
+# ---------------------------------------------------------------
+# Effects along the conifer gradient
+# ---------------------------------------------------------------
+
+def _conifer_windows(width=CONIFER_WINDOW_WIDTH, step=CONIFER_WINDOW_STEP):
+    starts = np.arange(0, 100 - width + step, step)
+    return [(a, min(a + width, 100)) for a in starts]
+
+
+def _gradient_row(model, term, metric, model_name, ref_sd, lo, hi, n, c_median, alpha):
+    ci = model.conf_int(alpha=alpha).loc[term]
+    return {
+        "diversity_metric": metric, "model": model_name,
+        "window_lower": lo, "window_upper": hi, "conifer_median": c_median, "n": n,
+        "theta": model.params[term],
+        "pct": _to_pct(model.params[term] * ref_sd),
+        "pct_ci_lower": _to_pct(ci.iloc[0] * ref_sd),
+        "pct_ci_upper": _to_pct(ci.iloc[1] * ref_sd),
+        "p_value": model.pvalues[term],
+    }
+
+
+def compute_conifer_gradient(df, diversity_metrics=DIVERSITY_METRICS, stability_col=STABILITY_COL,
+                             conifer_col=CONIFER_COL, width=CONIFER_WINDOW_WIDTH,
+                             step=CONIFER_WINDOW_STEP, min_n=CONIFER_MIN_N, alpha=CI_ALPHA):
+    """
+    Refits the individual and mutually adjusted models in sliding windows of
+    % conifer. Effects are scaled by the FULL-sample SD of each D~_j, so changes
+    across windows reflect changes in theta_j, not changes in the spread of D~_j.
+    """
+    cols = [stability_col, conifer_col] + list(diversity_metrics.values())
+    df = _orient_outcome(df.dropna(subset=cols).reset_index(drop=True), stability_col)
+    ref_sd = {m: df[c].astype(float).std(ddof=1) for m, c in diversity_metrics.items()}
+    c = df[conifer_col].astype(float)
+
+    rows = []
+    for lo, hi in _conifer_windows(width, step):
+        sub = df[(c >= lo) & (c <= hi)]
+        n = len(sub)
+        if n < min_n:
+            print(f"  [conifer_gradient] skipping {lo}-{hi}% (n = {n} < {min_n})")
+            continue
+        c_med = sub[conifer_col].median()
+
+        for m, col in diversity_metrics.items():
+            model, _, _ = fit_individual(sub[stability_col], sub[col])
+            rows.append(_gradient_row(model, "D", m, "individual", ref_sd[m], lo, hi, n, c_med, alpha))
+
+        model, X, _ = fit_mutually_adjusted(sub, diversity_metrics, stability_col)
+        for m in X.columns:
+            rows.append(_gradient_row(model, m, m, "mutually_adjusted", ref_sd[m], lo, hi, n, c_med, alpha))
+    return pd.DataFrame(rows)
+
+
+def conifer_interaction_tests(df, diversity_metrics=DIVERSITY_METRICS, stability_col=STABILITY_COL,
+                              conifer_col=CONIFER_COL, alpha=CI_ALPHA):
+    """
+    Formal test of whether each effect changes with conifer share:
+        S~ = theta D~ + gamma D~*z + delta z,   z = (100 - %conifer)/10, centred
+    gamma = change in theta per 10 percentage points LESS conifer.
+    """
+    cols = [stability_col, conifer_col] + list(diversity_metrics.values())
+    df = _orient_outcome(df.dropna(subset=cols).reset_index(drop=True), stability_col)
+    z = (100 - df[conifer_col].astype(float).values) / 10
+    z = z - z.mean()
+    y = df[stability_col].astype(float).values
+
+    rows = []
+    for m, col in diversity_metrics.items():
+        d = df[col].astype(float).values
+        X = pd.DataFrame({"D": d, "D_x_less_conifer": d * z, "less_conifer": z})
+        model = _fit(y, _design(X))
+        ci = model.conf_int(alpha=alpha).loc["D_x_less_conifer"]
+        sd = d.std(ddof=1)
+        rows.append({
+            "diversity_metric": m,
+            "theta_at_mean_conifer": model.params["D"],
+            "gamma": model.params["D_x_less_conifer"],
+            "gamma_ci_lower": ci.iloc[0], "gamma_ci_upper": ci.iloc[1],
+            # change in the per-1-SD effect (log scale; x100 ~ percentage points)
+            "effect_change_per_SD_per_10pp_less_conifer": model.params["D_x_less_conifer"] * sd,
+            "p_value_raw": model.pvalues["D_x_less_conifer"],
+            "n": len(y),
+        })
+    return _add_fdr(pd.DataFrame(rows))
+
+
+def plot_conifer_gradient(grad_df, inter_df=None, savepath=None):
+    """One row, one panel per metric: effect vs % conifer (left -> right = less conifer)."""
+    metrics = list(dict.fromkeys(grad_df["diversity_metric"]))
+    n = len(metrics)
+    fig, axes = plt.subplots(1, n, figsize=(2.5 * n, 3.0), sharex=True, sharey=True,
+                             squeeze=False)
+    axes = axes[0]
+
+    for ax, m in zip(axes, metrics):
+        color = METRIC_COLORS.get(m, COLOR_NEG)
+        sel = grad_df["diversity_metric"] == m
+        adj = grad_df[sel & (grad_df["model"] == "mutually_adjusted")].sort_values("conifer_median")
+        ind = grad_df[sel & (grad_df["model"] == "individual")].sort_values("conifer_median")
+
+        if len(ind):
+            ax.plot(ind["conifer_median"], ind["pct"], color="#7f7f7f", ls="--", lw=1.0,
+                    label="Individual")
+        if len(adj):
+            ax.fill_between(adj["conifer_median"], adj["pct_ci_lower"], adj["pct_ci_upper"],
+                            color=color, alpha=0.2, linewidth=0)
+            ax.plot(adj["conifer_median"], adj["pct"], color=color, lw=1.6, marker="o", ms=3,
+                    label="Mutually adjusted")
+        ax.axhline(0, color="#1a1a1a", lw=0.8, zorder=0)
+
+        title = m
+        if inter_df is not None:
+            r = inter_df[inter_df["diversity_metric"] == m]
+            if len(r):
+                title += f"\n(interaction $p_{{FDR}}$ = {r['p_value_fdr'].iloc[0]:.2g})"
+        ax.set_title(title, fontsize=9)
+        ax.set_xlabel("% conifer  \u2192  less conifer", fontsize=9)
+
+    axes[0].invert_xaxis()   # shared x, so every panel is inverted
+    axes[0].set_ylabel(f"% change in {_outcome_name()}\nper 1 SD of " + r"$\tilde{D}_j$",
+                       fontsize=9)
+    axes[0].legend(loc="best", fontsize=7)
+    fig.suptitle(f"Diversity effects on {_outcome_name()} along the conifer gradient",
+                 fontweight="bold", fontsize=10)
+    fig.tight_layout()
+    _save_publication_figure(fig, savepath)
+    return fig
+
+
+def run_conifer_gradient_analysis(df, outdir=OUT_GRADIENT_DIR):
+    os.makedirs(outdir, exist_ok=True)
+    grad_df = compute_conifer_gradient(df)
+    grad_df.to_csv(_out(outdir, OUT_CONIFER_GRADIENT), index=False)
+    inter_df = conifer_interaction_tests(df)
+    inter_df.to_csv(_out(outdir, OUT_CONIFER_INTERACTION), index=False)
+    print("\n[run_conifer_gradient_analysis] Interaction with % conifer:")
+    print(inter_df.to_string(index=False))
+    plot_conifer_gradient(grad_df, inter_df, savepath=_out(outdir, OUT_CONIFER_GRADIENT_FIG))
+    return grad_df, inter_df
+
+
+# ---------------------------------------------------------------
+# Scenario effects
+# ---------------------------------------------------------------
+
 def compute_scenario_effects(summary_df, raw_df=None, residual_df=None,
                              raw_cols=RAW_METRIC_COLS, percentiles=SCENARIO_PERCENTILES,
                              fixed=FIXED_SCENARIOS, alpha=CI_ALPHA):
@@ -467,7 +594,7 @@ def compute_scenario_effects(summary_df, raw_df=None, residual_df=None,
 
 def run_individual_effect_analysis(df, diversity_metrics=DIVERSITY_METRICS,
                                    stability_col=STABILITY_COL, pid_col=PID_COL, outdir=OUTDIR):
-    """Individual-effect models (Eq. individual_effect) for every diversity metric."""
+    """Individual-effect models (Eq. individual_effect) for every diversity metric. CSVs only."""
     os.makedirs(outdir, exist_ok=True)
     df = df.dropna(subset=[stability_col] + list(diversity_metrics.values())).reset_index(drop=True)
     df = _orient_outcome(df, stability_col)
@@ -480,11 +607,6 @@ def run_individual_effect_analysis(df, diversity_metrics=DIVERSITY_METRICS,
 
     summary_df = add_net_scale(summary_df, _net_for(summary_df, df))
     summary_df.to_csv(_out(outdir, OUT_INDIVIDUAL_EFFECTS), index=False)
-    _plot_ranking_bar(summary_df,
-                      xlabel=_net_label(),
-                      title=f"Individual effects of diversity metrics on {_outcome_name()}",
-                      savepath=_out(outdir, OUT_INDIVIDUAL_RANKING_FIG),
-                      col="rel_net", decimals=0)
 
     effects_df = compute_effects_dataframe(df, all_results, diversity_metrics, stability_col, pid_col)
     effects_df.to_csv(_out(outdir, OUT_INDIVIDUAL_PER_OBS), index=False)
@@ -697,14 +819,18 @@ def plot_relative_importance(ri_df, savepath):
 
 
 if __name__ == "__main__":
-    residuals_df = pd.read_csv(RESIDUALS_PATH)
+    residuals_all = pd.read_csv(RESIDUALS_PATH)
+    residuals_all.drop(columns=["residual_pct_rare_species"], inplace=True, errors="ignore")
+    residuals_all = residuals_all.merge(PID_df[["PID", "STDAGE", "percent_conifer"]], on="PID", how="left")
 
-    residuals_df.drop(columns=["residual_pct_rare_species"], inplace=True, errors="ignore")
-    residuals_df=residuals_df.merge(PID_df[['PID', 'STDAGE', 'percent_conifer']], on='PID', how='left')
-    residuals_df=residuals_df[residuals_df.percent_conifer < 40]
+    # Effects along the full conifer gradient (one row of panels)
+    grad_df, inter_df = run_conifer_gradient_analysis(residuals_all)
 
-
+    residuals_df = residuals_all  # [residuals_all.percent_conifer > 90]
     ind_results, ind_summary, ind_effects = run_individual_effect_analysis(residuals_df, outdir=OUTDIR)
     adj_model, vif_df, adj_summary, adj_effects = run_mutually_adjusted_analysis(residuals_df, outdir=OUTDIR)
+
+    adj_effects.merge(PID_df[['PID', 'lon', 'lat']], on='PID', how='left'
+    ).to_csv("results/mutually_adjusted_effects_per_observation_with_coords.csv", index=False)  
 
     plt.show()

@@ -54,7 +54,7 @@ from matplotlib import font_manager
 from matplotlib.patches import Patch
 from matplotlib.ticker import FuncFormatter, MaxNLocator
 from shapely.geometry import box
-
+from matplotlib.patches import Rectangle
 # ---------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------
@@ -68,8 +68,8 @@ STATES_PATH = None            # e.g. "data/states/cb_2018_us_state_20m.shp"
 METRIC_COLORS = {
     "Rao's Q": "#4910D8", # red
     "Functional Evenness": "#9975BA", # purple
-    "Shannon": "#7DDFE7", # brown
-    "Species richness": "#13D2B9", # olive
+    "Shannon": "#27B453", # brown
+    "Species richness": "#43D9DC", # olive
     }
 INTENSITY_FLOOR = 0.18        # weakest effects still show 18% of the hue (stays distinct from grey/white)
 
@@ -81,7 +81,10 @@ FIG_WIDTH_IN = 7.0            # ~178 mm, double-column width
 DPI = 600
 OUT_STEM = "results/dominant_diversity_metric_ecoregions"
 
-
+CONIFER_LOOKUP_PATH = "data/lookup/PID_location_v3.csv"   # PID -> percent_conifer
+CONIFER_COL = "percent_conifer"
+CONIFER_BINS = np.arange(0, 101, 10)                      # 10-pp bins
+MIN_PLOTS_PER_CONIFER_BIN = 20
 # ---------------------------------------------------------------
 # Data
 # ---------------------------------------------------------------
@@ -186,6 +189,102 @@ def summarize(joined, eco, metrics, min_plots=MIN_PLOTS_PER_ECOREGION):
     return eco
 
 
+def attach_conifer(plots, lookup_path=CONIFER_LOOKUP_PATH, col=CONIFER_COL):
+    """Adds % conifer to each plot from the PID lookup (if not already in the effects CSV)."""
+    if col not in plots.columns:
+        lk = pd.read_csv(lookup_path, usecols=["PID", col]).drop_duplicates("PID")
+        plots = plots.merge(lk, on="PID", how="left")
+    c = plots[col]
+    print(f"[conifer] {int(c.isna().sum())} plots without % conifer; "
+          f"range {c.min():.0f}-{c.max():.0f}%")
+    if c.max() - c.min() < 50:
+        print("[conifer] WARNING: narrow % conifer range -- were these effects fitted on a "
+              "subset (e.g. deciduous only)? The conifer panel needs all plots.")
+    return plots
+
+
+def summarize_conifer(plots, metrics, bins=CONIFER_BINS, min_plots=MIN_PLOTS_PER_CONIFER_BIN,
+                      col=CONIFER_COL):
+    """Per % conifer bin: mean |effect| per metric, winner, its magnitude and margin."""
+    p = plots.dropna(subset=[col])
+    p = p.assign(_bin=pd.cut(p[col], bins, include_lowest=True))
+    g = p.groupby("_bin", observed=False)
+    mags = g[metrics].mean()
+
+    out = pd.DataFrame({"lo": bins[:-1], "hi": bins[1:], "n_plots": g.size().to_numpy()})
+    for m in metrics:
+        out[f"mag__{m}"] = mags[m].to_numpy()
+
+    arr = mags.to_numpy(dtype=float)
+    has = ~np.isnan(arr).all(axis=1)
+    order = np.argsort(-np.nan_to_num(arr, nan=-np.inf), axis=1)
+    top, second = order[:, 0], order[:, 1]
+    rows = np.arange(len(out))
+    out["winner"] = [metrics[k] if h else None for k, h in zip(top, has)]
+    out["value"] = np.where(has, arr[rows, top], np.nan)
+    out["runner_up"] = [metrics[k] if h else None for k, h in zip(second, has)]
+    out["margin"] = np.where(has, arr[rows, top] / arr[rows, second], np.nan)
+    out["no_plots"] = out["n_plots"] == 0
+    out["low_n"] = (out["n_plots"] > 0) & (out["n_plots"] < min_plots)
+    return out
+
+
+def _text_color(fc):
+    r, g, b = mcolors.to_rgb(fc)
+    return "white" if 0.299 * r + 0.587 * g + 0.114 * b < 0.5 else "#1a1a1a"
+
+
+def _draw_conifer_panel(fig, rect, conf, legend_metrics, norm, scale, exp):
+    """Winner strip (hue = metric, intensity = magnitude) above per-metric mean |effect| lines."""
+    x0, y0, w, h = rect
+    strip_h, gap = 0.20 * h, 0.04 * h
+    sax = fig.add_axes([x0, y0 + h - strip_h, w, strip_h])
+    lax = fig.add_axes([x0, y0, w, h - strip_h - gap], sharex=sax)
+
+    # Winner strip, same encoding as the map
+    for r in conf.itertuples():
+        if r.no_plots:
+            fc, ec, hatch = "#e6e6e6", "#9a9a9a", None
+        elif r.low_n:
+            fc, ec, hatch = "#f7f7f7", "#808080", "//////"
+        else:
+            fc, ec, hatch = blend(METRIC_COLORS[r.winner], norm(r.value)), "#5a5a5a", None
+        sax.add_patch(Rectangle((r.lo, 0), r.hi - r.lo, 1, facecolor=fc, edgecolor=ec,
+                                linewidth=0.3, hatch=hatch))
+        if r.n_plots:
+            sax.text((r.lo + r.hi) / 2, 0.5, f"{r.n_plots}", ha="center", va="center",
+                     fontsize=5.5, color=_text_color(fc))
+    sax.set_ylim(0, 1)
+    sax.set_yticks([])
+    sax.tick_params(axis="x", length=0, labelbottom=False)
+    sax.set_ylabel("Dominant\nmetric", rotation=0, ha="right", va="center", fontsize=7, labelpad=4)
+    sax.text(1.01, 0.5, "n plots", transform=sax.transAxes, fontsize=6, va="center", ha="left")
+    for sp in sax.spines.values():
+        sp.set_visible(False)
+
+    # Mean |effect| of every metric per bin (hollow markers = low-n bins)
+    mids = ((conf["lo"] + conf["hi"]) / 2).to_numpy()
+    ok = (~conf["no_plots"] & ~conf["low_n"]).to_numpy()
+    low = conf["low_n"].to_numpy()
+    for m in legend_metrics:
+        y = conf[f"mag__{m}"].to_numpy(dtype=float) / scale
+        c = METRIC_COLORS[m]
+        lax.plot(mids, np.where(ok, y, np.nan), color=c, lw=1.3, marker="o", ms=3, label=m)
+        if low.any():
+            lax.plot(mids[low], y[low], ls="none", marker="o", ms=3, mfc="white", mec=c, mew=0.8)
+
+    lax.set_xlim(conf["hi"].max(), conf["lo"].min())     # left -> right = less conifer
+    lax.set_xticks(np.r_[conf["lo"].to_numpy(), conf["hi"].iloc[-1]])
+    lax.set_ylim(bottom=0)
+    lax.grid(False)
+    lax.set_xlabel("% conifer  \u2192  less conifer", fontsize=7.5)
+    lax.set_ylabel(f"Mean |effect|\n(\u00d710$^{{{exp}}}$)", fontsize=7.5)
+    lax.tick_params(labelsize=7, length=2, width=0.4)
+    for name, sp in lax.spines.items():
+        sp.set_visible(name in ("left", "bottom"))
+        sp.set_linewidth(0.4)
+    lax.legend(fontsize=6.5, ncol=2, frameon=False, loc="best", handlelength=1.5)
+
 # ---------------------------------------------------------------
 # Colour: hue = metric, intensity = magnitude
 # ---------------------------------------------------------------
@@ -218,7 +317,8 @@ def _scale_bar(ax, xmax, ymin, width, height, length_m=500_000):
 
 
 def draw_map(eco, us_poly, metrics, min_plots=MIN_PLOTS_PER_ECOREGION, out_stem=OUT_STEM,
-             national_means=None):
+             national_means=None, conifer_summary=None):
+    
     mpl.rcParams.update({
         "font.family": "sans-serif", "font.sans-serif": [_pick_font()],
         "pdf.fonttype": 42, "ps.fonttype": 42, "hatch.linewidth": 0.3,
@@ -226,6 +326,10 @@ def draw_map(eco, us_poly, metrics, min_plots=MIN_PLOTS_PER_ECOREGION, out_stem=
 
     colored = eco[~eco.no_plots & ~eco.low_n].copy()
     vals = colored["value"]
+    if conifer_summary is not None:
+        cs = conifer_summary[~conifer_summary.no_plots & ~conifer_summary.low_n]
+        vals = pd.concat([vals, cs["value"]])
+
     exp = int(np.floor(np.log10(vals.max())))
     scale = 10.0 ** exp
     # Magnitude limits snapped outward to "nice" tick values so both ends of the scale are labelled
@@ -248,9 +352,10 @@ def draw_map(eco, us_poly, metrics, min_plots=MIN_PLOTS_PER_ECOREGION, out_stem=
 
     map_h_in = FIG_WIDTH_IN * height / width
     strip_in = 0.80 + 0.15 * n_rows       # strip under the map that holds the legend
-    fig_h_in = map_h_in + strip_in
+    conifer_in = 2.0 if conifer_summary is not None else 0.0
+    fig_h_in = map_h_in + conifer_in + strip_in
     fig = plt.figure(figsize=(FIG_WIDTH_IN, fig_h_in))
-    ax = fig.add_axes([0, strip_in / fig_h_in, 1, map_h_in / fig_h_in])
+    ax = fig.add_axes([0, (strip_in + conifer_in) / fig_h_in, 1, map_h_in / fig_h_in])
     ax.set_xlim(xmin, xmax)
     ax.set_ylim(ymin, ymax)
     ax.set_aspect("equal")
@@ -265,6 +370,12 @@ def draw_map(eco, us_poly, metrics, min_plots=MIN_PLOTS_PER_ECOREGION, out_stem=
     if us_poly is not None:
         gpd.GeoSeries([us_poly], crs=eco.crs).boundary.plot(ax=ax, color="black", linewidth=0.5)
     _scale_bar(ax, xmax, ymin, width, height)
+
+    if conifer_summary is not None:
+        rect = [0.20, (strip_in + 0.45) / fig_h_in, 0.58, (conifer_in - 0.55) / fig_h_in]
+        _draw_conifer_panel(fig, rect, conifer_summary, legend_metrics, norm, scale, exp)
+        ax.text(0.01, 0.99, "a", transform=ax.transAxes, fontsize=10, fontweight="bold", va="top")
+        fig.text(0.02, rect[1] + rect[3], "b", fontsize=10, fontweight="bold", va="top")
 
     # Legend beneath the map: one gradient row per metric, shared magnitude axis on top
     row_h = 0.15 / fig_h_in
@@ -331,7 +442,8 @@ def draw_map(eco, us_poly, metrics, min_plots=MIN_PLOTS_PER_ECOREGION, out_stem=
 # ---------------------------------------------------------------
 def run(effects_csv=EFFECTS_CSV, ecoregions_path=ECOREGIONS_PATH, states_path=STATES_PATH,
         min_plots=MIN_PLOTS_PER_ECOREGION, out_stem=OUT_STEM):
-    plots, metrics = load_plot_effects(effects_csv)
+    plots, metrics = load_plot_effects(effects_csv)    
+    plots = attach_conifer(plots)
     eco = read_ecoregions(ecoregions_path, plots)
     joined = assign_ecoregions(plots, eco)
     eco = summarize(joined, eco, metrics, min_plots)
@@ -361,8 +473,13 @@ def run(effects_csv=EFFECTS_CSV, ecoregions_path=ECOREGIONS_PATH, states_path=ST
     print("[result] national mean |effect| (all plots), x1e-3:\n"
           + (national_means * 1e3).round(3).sort_values(ascending=False).to_string())
 
-    fig = draw_map(eco_draw, us_poly, metrics, min_plots, out_stem, national_means=national_means)
+    conifer_summary = summarize_conifer(plots, metrics)
+    print("[result] dominant metric by % conifer bin:\n"
+          + conifer_summary[["lo", "hi", "n_plots", "winner", "margin"]].to_string(index=False))
 
+    fig = draw_map(eco_draw, us_poly, metrics, min_plots, out_stem,
+                   national_means=national_means, conifer_summary=conifer_summary)
+    conifer_summary.drop(columns="no_plots").to_csv(f"{out_stem}_conifer_summary.csv", index=False)
     keep = [c for c in (ECO_NAME_COL,) if c in eco.columns] + \
            ["n_plots", "winner", "value", "runner_up", "margin", "low_n"] + \
            [f"mag__{m}" for m in metrics]

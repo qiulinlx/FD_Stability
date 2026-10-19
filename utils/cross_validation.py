@@ -6,6 +6,9 @@ import random
 from math import radians, sin, cos, sqrt, asin
 from sklearn.preprocessing import StandardScaler
 
+import random 
+import xgboost as xgb
+
 def process_ecoregion(path: str):
 
     ecoregions = gpd.read_file(path)
@@ -27,6 +30,23 @@ def assign_spatial_groups(df, grid_size=1.0):
         df["lat_bin"].astype(str)
     )
     return df
+
+def fit_predict_group(train_df, test_df, target_col, feature_cols, params, n_rounds):
+    X_train = train_df[feature_cols]
+    X_test = test_df[feature_cols]
+    y_train = train_df[target_col].values
+    y_test = test_df[target_col].values
+
+    scaler = StandardScaler()
+    X_train_s = pd.DataFrame(scaler.fit_transform(X_train), columns=feature_cols, index=X_train.index)
+    X_test_s = pd.DataFrame(scaler.transform(X_test), columns=feature_cols, index=X_test.index)
+
+    dtrain = xgb.DMatrix(X_train_s, y_train, enable_categorical=True)
+    dtest = xgb.DMatrix(X_test_s, y_test, enable_categorical=True)
+
+    model = xgb.train(params=params, dtrain=dtrain, num_boost_round=n_rounds)
+    y_pred = model.predict(dtest)
+    return y_test, y_pred  # arrays, one value per test row
 
 
 def gridded_cross_validation(df, test_size, batch_size, n_bins=10):
@@ -275,38 +295,7 @@ def select_n_remove_buffer(df,
     return selected_df, remaining_df, removed_df
 
 
-def train_test_split_v3(df, n, random_key, buffer_km=100):
-    selected, remaining, removed = select_n_remove_buffer(
-        df,n, buffer_km=50, lat_col='lat', lon_col='lon', random_seed=random_key
-    )
 
-    test = selected.drop(columns=['lat', 'lon', 'biome', 'treecover2000'])
-    test_biomes = selected[['biome']]
-    test_pid = selected[['PID']]  # keep track of WHICH point this is
-    train = remaining.drop(columns=['lat', 'lon', 'biome', 'treecover2000'])
-
-    y = ['transformed npp']
-    X_train = train.drop(columns=y + ['PID'])
-    y_train = train['transformed npp'].values
-
-    X_test = test.drop(columns=y + ['PID'])
-    y_test = test['transformed npp'].values
-
-    scaler = StandardScaler()
-    X_train = pd.DataFrame(scaler.fit_transform(X_train), columns=X_train.columns, index=X_train.index)
-    X_test = pd.DataFrame(scaler.transform(X_test), columns=X_test.columns, index=X_test.index)
-
-    return X_train, y_train, X_test, y_test, test_biomes, test_pid, scaler
-
-
-def haversine(lat1, lon1, lat2, lon2):
-    R = 6371
-    lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
-    dlat = lat2 - lat1
-    dlon = lon2 - lon1
-    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
-    c = 2 * asin(sqrt(a))
-    return R * c
 
 '''
 
