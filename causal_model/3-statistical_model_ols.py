@@ -8,36 +8,20 @@ from statsmodels.stats.outliers_influence import variance_inflation_factor
 from statsmodels.stats.multitest import multipletests
 from statsmodels.tools.tools import add_constant
 from scipy import stats
-import sys
-# from pathlib import Path
-
-# sys.path.append(str(Path(__file__).resolve().parents[1]))
-
-# import warnings
-
-# from utils.visualisation_utils import _save_publication_figure
 
 # ===============================================================
 # Input and output files  (edit names here only)
 # ===============================================================
 
-# Conifer-gradient outputs (uses ALL plots)
-OUT_GRADIENT_DIR = "results"
-OUT_CONIFER_GRADIENT = "effects_vs_percent_conifer.csv"
-OUT_CONIFER_INTERACTION = "conifer_interaction_tests.csv"
-OUT_CONIFER_GRADIENT_FIG = "effects_vs_percent_conifer.png"
-
-CONIFER_COL = "percent_conifer"
-CONIFER_WINDOW_WIDTH = 20   # percentage points per window
-CONIFER_WINDOW_STEP = 5     # slide step
-CONIFER_MIN_N = 50          # skip windows with fewer plots
-
 # Inputs
 RAW_DATA_PATH = "data/final/final_dataset_ba.csv"
-RESIDUALS_PATH = "results/step_2_residuals_merged.csv"
+RESIDUALS_PATH = "results/step_2_residuals_merged.csv"  # 'results/asynch_residuals_cleaned.csv'
+RARITY_PATH = "data/final/dataset_rarity.parquet"
+PID_LOOKUP_PATH = "data/lookup/PID_location_v3.csv"
 
-# Output directory
-OUTDIR = "results"  # all outputs below are written here
+# Output directories
+OUTDIR = "results/ols"            # individual / mutually adjusted outputs
+OUT_GRADIENT_DIR = "results/ols"  # gradient outputs
 
 # Individual-effect model outputs (no figure)
 OUT_INDIVIDUAL_EFFECTS = "individual_effects.csv"
@@ -48,12 +32,64 @@ OUT_INDIVIDUAL_SCENARIOS = "individual_scenario_effects.csv"
 OUT_ADJUSTED_EFFECTS = "mutually_adjusted_effects.csv"
 OUT_ADJUSTED_VIF = "mutually_adjusted_vif.csv"
 OUT_ADJUSTED_PER_OBS = "mutually_adjusted_effects_per_observation.csv"
+OUT_ADJUSTED_PER_OBS_COORDS = "results/mutually_adjusted_effects_per_observation_with_coords.csv"  # full path
 OUT_ADJUSTED_SCENARIOS = "mutually_adjusted_scenario_effects.csv"
 OUT_ADJUSTED_RANKING_FIG = "ranking_mutually_adjusted.png"
 
 # Relative importance (LMG) outputs
 OUT_RELATIVE_IMPORTANCE = "relative_importance.csv"
 OUT_RELATIVE_IMPORTANCE_FIG = "relative_importance.png"
+
+# ---------------------------------------------------------------
+# Gradient analyses (use ALL plots): the individual and mutually adjusted
+# models are refitted in windows along a plot-level gradient, and the slope
+# of stability on each diversity metric is plotted against the gradient. Three figures:
+# one panel per metric (individual + mutually adjusted lines), and all metrics in one
+# panel for the individual models and for the mutually adjusted model.
+# ---------------------------------------------------------------
+CONIFER_COL = "percent_conifer"          # from PID_LOOKUP_PATH
+PCT_RARE_RAW_COL = "pct_rare_species"    # from RARITY_PATH
+
+GRADIENTS = {
+    "conifer": dict(
+        col=CONIFER_COL, label="% conifer",
+        range=(0, 100), width=20, step=15, min_n=40,   # windows in the gradient's units
+        invert=False, axis_label="% conifer  \u2192  more conifer",
+        direction=1, unit=10, unit_label="10 pp more conifer",   # for the interaction test
+        out_csv="effects_vs_percent_conifer.csv",
+        out_inter="conifer_interaction_tests.csv",
+        out_fig_by_metric="effects_vs_percent_conifer.png",            # one panel per metric
+        out_fig_individual="effects_vs_percent_conifer_individual.png",
+        out_fig_adjusted="effects_vs_percent_conifer_mutually_adjusted.png",
+    ),
+    "pct_rare": dict(
+        col=PCT_RARE_RAW_COL, label="% rare species",
+        range=None, width=None, step=0.1, min_n=40,  # None = from the data (1st-99th pct),
+                                                      # width 1/5 and step 1/20 of that range
+        invert=False, axis_label="% rare species  \u2192  more rare species",
+        direction=1, unit=10, unit_label="10 pp more rare species",  # use unit=0.1 if a proportion
+        out_csv="effects_vs_pct_rare_species.csv",
+        out_inter="pct_rare_species_interaction_tests.csv",
+        out_fig_by_metric="effects_vs_pct_rare_species.png",           # one panel per metric
+        out_fig_individual="effects_vs_pct_rare_species_individual.png",
+        out_fig_adjusted="effects_vs_pct_rare_species_mutually_adjusted.png",
+    ),
+}
+RUN_GRADIENTS = ["conifer", "pct_rare"]   # which gradient analyses to run (= rows of the combined figure)
+
+# One figure with every gradient in RUN_GRADIENTS stacked (rows) and the metrics side by side,
+# plus a right-hand column with the COMBINED effect of diversity: the % change in stability
+# when ALL metrics rise by 1 SD together, from the mutually adjusted model in each window.
+OUT_GRADIENTS_COMBINED_FIG = "effects_vs_gradients_combined.png"
+TOTAL_LABEL = "All metrics +1 SD"
+TOTAL_COLOR = "#222222"
+SHOW_METRICS_IN_TOTAL_PANEL = True        # thin adjusted metric lines behind the combined line
+# Truncate the ends of each row in the combined figure: only windows whose median lies between
+# these percentiles of the plots' gradient values are drawn, and the x-axis is fitted to them
+# (sparse, wide-CI windows at the extremes are dropped). None = draw every window.
+# Override per gradient with plot_trim=(lo, hi) in its GRADIENTS entry.
+COMBINED_TRIM_PCT = (5, 95)
+COMBINED_X_PAD = 0.1                     # padding either side, as a share of the plotted range
 
 
 def _out(outdir, filename):
@@ -96,21 +132,11 @@ def _save_publication_figure(fig, savepath_png):
     if savepath_png is None:
         return
     fig.savefig(savepath_png, dpi=300, bbox_inches="tight")
-    # savepath_pdf = os.path.splitext(savepath_png)[0] + ".pdf"
-    # fig.savefig(savepath_pdf, bbox_inches="tight")
     print(f"  Saved {savepath_png}")
 
 
 COLOR_POS = "#7ddfe7"   # light blue: increases stability (drives NPP SD down)
 COLOR_NEG = "#4910d8"   # purple: decreases stability (drives NPP SD up)
-
-# Per-metric colours (used in the conifer-gradient figure)
-METRIC_COLORS = {
-    "Rao's Q": "#4910D8",
-    "Functional Evenness": "#9975BA",
-    "Shannon": "#27B453",
-    "Species richness": "#43D9DC",
-}
 
 DIVERSITY_METRICS = {
     "Rao's Q": "residual_raos_q",
@@ -118,6 +144,14 @@ DIVERSITY_METRICS = {
     # "Shannon": "residual_shannon",
     "Species richness": "residual_species_richness",
 }
+
+# Per-metric colours (gradient figures)
+METRIC_COLORS = {
+    "Rao's Q": "#4B2BC4",
+    "Functional Evenness": "#A47CC7",
+    "Species richness": "#14B8A0",
+}
+
 STABILITY_COL = "residual_std_npp"   # S~
 PID_COL = "PID"
 
@@ -142,7 +176,7 @@ OUTCOME_SIGN = -1 if REPORT_AS_STABILITY else 1
 # Raw (un-residualised) data, used for the percentile scenario contrasts.
 raw_df = pd.read_csv(RAW_DATA_PATH)
 
-PID_df = pd.read_csv("data/lookup/PID_location_v3.csv")
+PID_df = pd.read_csv(PID_LOOKUP_PATH)
 raw_df = raw_df.merge(PID_df[["PID", "STDAGE", "percent_conifer"]], on="PID", how="left")
 
 raw_df.drop(columns=["Unnamed: 0", "managed", "ownership", "DIA", "TPA_UNADJ", "Simpson's Index",
@@ -151,8 +185,6 @@ raw_df.drop(columns=["Unnamed: 0", "managed", "ownership", "DIA", "TPA_UNADJ", "
 raw_df.dropna(subset=["std npp", "mean", "Raos_Q", "Functional_Evenness", "Soil Moisture",
                       "Species Richness", "Shannon Diversity", "pet_std"],
               inplace=True)
-
-# raw_df = raw_df[raw_df.percent_conifer > 60]
 
 # ---------------------------------------------------------------
 # Ecological scenarios
@@ -165,6 +197,7 @@ RAW_METRIC_COLS = {
     "Shannon": "Shannon Diversity",
     "Species richness": "Species Richness",
 }
+
 # Percentile contrast applied to every metric: low -> high diversity.
 SCENARIO_PERCENTILES = (10, 90)
 # Fixed changes in natural units: {metric: [(label, delta), ...]}.
@@ -204,12 +237,6 @@ def centred_r2(model, y):
 def _to_pct(change):
     """Convert a change on the (log) outcome scale into a % change."""
     return (np.exp(change) - 1) * 100
-
-
-def _pct_label(suffix=""):
-    """x-axis label for the ranking charts, matching the reporting scale."""
-    what = "stability (1/NPP SD)" if REPORT_AS_STABILITY else "NPP SD"
-    return f"% change in {what} per 1 SD of " + r"$\tilde{D}_j$" + suffix
 
 
 def _outcome_name():
@@ -402,19 +429,29 @@ def compute_effects_dataframe(df, all_results, diversity_metrics=DIVERSITY_METRI
 
 
 # ---------------------------------------------------------------
-# Effects along the conifer gradient
+# Effects along a gradient (% conifer, % rare species, ...)
 # ---------------------------------------------------------------
 
-def _conifer_windows(width=CONIFER_WINDOW_WIDTH, step=CONIFER_WINDOW_STEP):
-    starts = np.arange(0, 100 - width + step, step)
-    return [(a, min(a + width, 100)) for a in starts]
+def _gradient_windows(values, cfg):
+    """Sliding windows (lo, hi) over the gradient, in its own units."""
+    if cfg.get("range"):
+        lo, hi = cfg["range"]
+    else:
+        lo, hi = np.nanpercentile(values, [1, 99])
+    span = hi - lo
+    width = cfg.get("width") or span / 5
+    step = cfg.get("step") or span / 20
+    starts = list(np.arange(lo, hi - width + 1e-9, step))
+    if not starts or starts[-1] + width < hi - 1e-9:
+        starts.append(hi - width)            # make sure the last window reaches the top
+    return [(a, a + width) for a in starts]
 
 
-def _gradient_row(model, term, metric, model_name, ref_sd, lo, hi, n, c_median, alpha):
+def _gradient_row(model, term, metric, model_name, ref_sd, lo, hi, n, g_median, alpha):
     ci = model.conf_int(alpha=alpha).loc[term]
     return {
         "diversity_metric": metric, "model": model_name,
-        "window_lower": lo, "window_upper": hi, "conifer_median": c_median, "n": n,
+        "window_lower": lo, "window_upper": hi, "gradient_median": g_median, "n": n,
         "theta": model.params[term],
         "pct": _to_pct(model.params[term] * ref_sd),
         "pct_ci_lower": _to_pct(ci.iloc[0] * ref_sd),
@@ -423,123 +460,311 @@ def _gradient_row(model, term, metric, model_name, ref_sd, lo, hi, n, c_median, 
     }
 
 
-def compute_conifer_gradient(df, diversity_metrics=DIVERSITY_METRICS, stability_col=STABILITY_COL,
-                             conifer_col=CONIFER_COL, width=CONIFER_WINDOW_WIDTH,
-                             step=CONIFER_WINDOW_STEP, min_n=CONIFER_MIN_N, alpha=CI_ALPHA):
+def compute_gradient(df, cfg, diversity_metrics=DIVERSITY_METRICS, stability_col=STABILITY_COL,
+                     alpha=CI_ALPHA):
     """
-    Refits the individual and mutually adjusted models in sliding windows of
-    % conifer. Effects are scaled by the FULL-sample SD of each D~_j, so changes
+    Refits the individual and mutually adjusted models in sliding windows of the
+    gradient. Effects are scaled by the FULL-sample SD of each D~_j, so changes
     across windows reflect changes in theta_j, not changes in the spread of D~_j.
     """
-    cols = [stability_col, conifer_col] + list(diversity_metrics.values())
+    gcol = cfg["col"]
+    cols = [stability_col, gcol] + list(diversity_metrics.values())
     df = _orient_outcome(df.dropna(subset=cols).reset_index(drop=True), stability_col)
     ref_sd = {m: df[c].astype(float).std(ddof=1) for m, c in diversity_metrics.items()}
-    c = df[conifer_col].astype(float)
+    g = df[gcol].astype(float)
 
     rows = []
-    for lo, hi in _conifer_windows(width, step):
-        sub = df[(c >= lo) & (c <= hi)]
+    for lo, hi in _gradient_windows(g.values, cfg):
+        sub = df[(g >= lo) & (g <= hi)]
         n = len(sub)
-        if n < min_n:
-            print(f"  [conifer_gradient] skipping {lo}-{hi}% (n = {n} < {min_n})")
+        if n < cfg["min_n"]:
+            print(f"  [{cfg['label']} gradient] skipping {lo:.3g}-{hi:.3g} (n = {n} < {cfg['min_n']})")
             continue
-        c_med = sub[conifer_col].median()
+        g_med = sub[gcol].median()
 
         for m, col in diversity_metrics.items():
             model, _, _ = fit_individual(sub[stability_col], sub[col])
-            rows.append(_gradient_row(model, "D", m, "individual", ref_sd[m], lo, hi, n, c_med, alpha))
+            rows.append(_gradient_row(model, "D", m, "individual", ref_sd[m], lo, hi, n, g_med, alpha))
 
         model, X, _ = fit_mutually_adjusted(sub, diversity_metrics, stability_col)
         for m in X.columns:
-            rows.append(_gradient_row(model, m, m, "mutually_adjusted", ref_sd[m], lo, hi, n, c_med, alpha))
+            rows.append(_gradient_row(model, m, m, "mutually_adjusted", ref_sd[m], lo, hi, n, g_med, alpha))
+        rows.append(_total_row(model, list(X.columns), ref_sd, lo, hi, n, g_med, alpha))
     return pd.DataFrame(rows)
 
 
-def conifer_interaction_tests(df, diversity_metrics=DIVERSITY_METRICS, stability_col=STABILITY_COL,
-                              conifer_col=CONIFER_COL, alpha=CI_ALPHA):
+def _total_row(model, terms, ref_sd, lo, hi, n, g_median, alpha):
     """
-    Formal test of whether each effect changes with conifer share:
-        S~ = theta D~ + gamma D~*z + delta z,   z = (100 - %conifer)/10, centred
-    gamma = change in theta per 10 percentage points LESS conifer.
+    Combined effect of diversity in one window: every metric +1 full-sample SD together,
+    from the mutually adjusted model, sum_j theta_j * SD_j, with a CI from the robust
+    covariance of the thetas (so it accounts for their correlation).
     """
-    cols = [stability_col, conifer_col] + list(diversity_metrics.values())
+    s = np.array([ref_sd[t] for t in terms])
+    b = model.params[terms].to_numpy(float)
+    cov = model.cov_params().loc[terms, terms].to_numpy(float)
+    est = float(s @ b)
+    se = float(np.sqrt(max(s @ cov @ s, 0)))
+    crit = _crit(model, alpha)
+    z = est / se if se > 0 else np.nan
+    return {
+        "diversity_metric": TOTAL_LABEL, "model": "total",
+        "window_lower": lo, "window_upper": hi, "gradient_median": g_median, "n": n,
+        "theta": est,
+        "pct": _to_pct(est), "pct_ci_lower": _to_pct(est - crit * se),
+        "pct_ci_upper": _to_pct(est + crit * se),
+        "p_value": float(2 * stats.norm.sf(abs(z))) if np.isfinite(z) else np.nan,
+    }
+
+
+def gradient_interaction_tests(df, cfg, diversity_metrics=DIVERSITY_METRICS,
+                               stability_col=STABILITY_COL, alpha=CI_ALPHA):
+    """
+    Formal test of whether each effect changes along the gradient (CSV only, not plotted):
+        S~ = theta D~ + gamma D~*z + delta z,   z = direction * gradient / unit, centred
+    gamma = change in theta per `unit_label` (e.g. per 10 pp less conifer).
+    """
+    gcol = cfg["col"]
+    cols = [stability_col, gcol] + list(diversity_metrics.values())
     df = _orient_outcome(df.dropna(subset=cols).reset_index(drop=True), stability_col)
-    z = (100 - df[conifer_col].astype(float).values) / 10
+    z = cfg["direction"] * df[gcol].astype(float).values / cfg["unit"]
     z = z - z.mean()
     y = df[stability_col].astype(float).values
 
     rows = []
     for m, col in diversity_metrics.items():
         d = df[col].astype(float).values
-        X = pd.DataFrame({"D": d, "D_x_less_conifer": d * z, "less_conifer": z})
+        X = pd.DataFrame({"D": d, "D_x_gradient": d * z, "gradient": z})
         model = _fit(y, _design(X))
-        ci = model.conf_int(alpha=alpha).loc["D_x_less_conifer"]
+        ci = model.conf_int(alpha=alpha).loc["D_x_gradient"]
         sd = d.std(ddof=1)
         rows.append({
+            "gradient": cfg["label"],
+            "gamma_per": cfg["unit_label"],
             "diversity_metric": m,
-            "theta_at_mean_conifer": model.params["D"],
-            "gamma": model.params["D_x_less_conifer"],
+            "theta_at_mean_gradient": model.params["D"],
+            "gamma": model.params["D_x_gradient"],
             "gamma_ci_lower": ci.iloc[0], "gamma_ci_upper": ci.iloc[1],
             # change in the per-1-SD effect (log scale; x100 ~ percentage points)
-            "effect_change_per_SD_per_10pp_less_conifer": model.params["D_x_less_conifer"] * sd,
-            "p_value_raw": model.pvalues["D_x_less_conifer"],
+            "effect_change_per_SD_per_unit": model.params["D_x_gradient"] * sd,
+            "p_value_raw": model.pvalues["D_x_gradient"],
             "n": len(y),
         })
     return _add_fdr(pd.DataFrame(rows))
 
 
-def plot_conifer_gradient(grad_df, inter_df=None, savepath=None):
-    """One row, one panel per metric: effect vs % conifer (left -> right = less conifer)."""
+def plot_gradient(grad_df, cfg, model_name, savepath=None):
+    """
+    One panel: the slope of stability on each diversity metric (y, as % change in
+    stability per 1 full-sample SD of D~_j) against the gradient (x), with its CI.
+    model_name = "individual" or "mutually_adjusted".
+    """
+    sub = grad_df[grad_df["model"] == model_name]
+    metrics = list(dict.fromkeys(sub["diversity_metric"]))
+    ci_pct = round((1 - CI_ALPHA) * 100)
+
+    fig, ax = plt.subplots(figsize=(4.8, 3.4))
+    for m in metrics:
+        d = sub[sub["diversity_metric"] == m].sort_values("gradient_median")
+        color = METRIC_COLORS.get(m, COLOR_NEG)
+        ax.fill_between(d["gradient_median"], d["pct_ci_lower"], d["pct_ci_upper"],
+                        color=color, alpha=0.15, linewidth=0)
+        ax.plot(d["gradient_median"], d["pct"], color=color, lw=1.6, marker="o", ms=3.5, label=m)
+    ax.axhline(0, color="#1a1a1a", lw=0.8, zorder=0)
+
+    if cfg.get("range"):
+        ax.set_xlim(*cfg["range"])
+    if cfg.get("invert"):
+        ax.invert_xaxis()
+    ax.set_xlabel(cfg["axis_label"])
+    ax.set_ylabel(f"Effect of diversity on {_outcome_name()}\n"
+                  f"(% change per 1 SD of diversity)", fontsize=9)
+    ax.set_title("Individual effects" if model_name == "individual" else "Mutually adjusted effects",
+                 fontsize=10)
+    ax.legend(loc="best", fontsize=7.5, title=f"Shading: {ci_pct}% CI", title_fontsize=7)
+    fig.tight_layout()
+    _save_publication_figure(fig, savepath)
+    return fig
+
+
+def plot_gradient_by_metric(grad_df, cfg, savepath=None):
+    """
+    One panel per diversity metric: slope of stability on that metric (y) against the
+    gradient (x). Mutually adjusted = metric colour with CI band; individual = grey
+    dashed line with a light grey CI band.
+    """
+    grad_df = grad_df[grad_df["model"] != "total"]
     metrics = list(dict.fromkeys(grad_df["diversity_metric"]))
     n = len(metrics)
-    fig, axes = plt.subplots(1, n, figsize=(2.5 * n, 3.0), sharex=True, sharey=True,
+    ci_pct = round((1 - CI_ALPHA) * 100)
+    fig, axes = plt.subplots(1, n, figsize=(2.6 * n, 3.0), sharex=True, sharey=True,
                              squeeze=False)
     axes = axes[0]
 
     for ax, m in zip(axes, metrics):
         color = METRIC_COLORS.get(m, COLOR_NEG)
         sel = grad_df["diversity_metric"] == m
-        adj = grad_df[sel & (grad_df["model"] == "mutually_adjusted")].sort_values("conifer_median")
-        ind = grad_df[sel & (grad_df["model"] == "individual")].sort_values("conifer_median")
+        ind = grad_df[sel & (grad_df["model"] == "individual")].sort_values("gradient_median")
+        adj = grad_df[sel & (grad_df["model"] == "mutually_adjusted")].sort_values("gradient_median")
 
         if len(ind):
-            ax.plot(ind["conifer_median"], ind["pct"], color="#7f7f7f", ls="--", lw=1.0,
-                    label="Individual")
+            ax.fill_between(ind["gradient_median"], ind["pct_ci_lower"], ind["pct_ci_upper"],
+                            color="#7f7f7f", alpha=0.12, linewidth=0)
+            ax.plot(ind["gradient_median"], ind["pct"], color="#7f7f7f", ls="--", lw=1.1,
+                    marker="o", ms=2.5, label="Individual")
         if len(adj):
-            ax.fill_between(adj["conifer_median"], adj["pct_ci_lower"], adj["pct_ci_upper"],
+            ax.fill_between(adj["gradient_median"], adj["pct_ci_lower"], adj["pct_ci_upper"],
                             color=color, alpha=0.2, linewidth=0)
-            ax.plot(adj["conifer_median"], adj["pct"], color=color, lw=1.6, marker="o", ms=3,
+            ax.plot(adj["gradient_median"], adj["pct"], color=color, lw=1.6, marker="o", ms=3,
                     label="Mutually adjusted")
         ax.axhline(0, color="#1a1a1a", lw=0.8, zorder=0)
+        ax.set_title(m, fontsize=9, color=color)
 
-        title = m
-        if inter_df is not None:
-            r = inter_df[inter_df["diversity_metric"] == m]
-            if len(r):
-                title += f"\n(interaction $p_{{FDR}}$ = {r['p_value_fdr'].iloc[0]:.2g})"
-        ax.set_title(title, fontsize=9)
-        ax.set_xlabel("% conifer  \u2192  less conifer", fontsize=9)
-
-    axes[0].invert_xaxis()   # shared x, so every panel is inverted
-    axes[0].set_ylabel(f"% change in {_outcome_name()}\nper 1 SD of " + r"$\tilde{D}_j$",
-                       fontsize=9)
-    axes[0].legend(loc="best", fontsize=7)
-    fig.suptitle(f"Diversity effects on {_outcome_name()} along the conifer gradient",
-                 fontweight="bold", fontsize=10)
+    if cfg.get("range"):
+        axes[0].set_xlim(*cfg["range"])
+    if cfg.get("invert"):
+        axes[0].invert_xaxis()   # shared x, so every panel is inverted
+    axes[0].set_ylabel(f"Effect of diversity on {_outcome_name()}\n"
+                       f"(% change per 1 SD of diversity)", fontsize=9)
+    axes[0].legend(loc="best", fontsize=7, title=f"Shading: {ci_pct}% CI", title_fontsize=6.5)
+    fig.supxlabel(cfg["axis_label"], fontsize=9)
     fig.tight_layout()
     _save_publication_figure(fig, savepath)
     return fig
 
 
-def run_conifer_gradient_analysis(df, outdir=OUT_GRADIENT_DIR):
+def _draw_metric_lines(ax, gm, color):
+    """Individual (grey dashed) and mutually adjusted (metric colour) slope along the gradient."""
+    ind = gm[gm["model"] == "individual"].sort_values("gradient_median")
+    adj = gm[gm["model"] == "mutually_adjusted"].sort_values("gradient_median")
+    if len(ind):
+        ax.fill_between(ind["gradient_median"], ind["pct_ci_lower"], ind["pct_ci_upper"],
+                        color="#7f7f7f", alpha=0.12, linewidth=0)
+        ax.plot(ind["gradient_median"], ind["pct"], color="#7f7f7f", ls="--", lw=1.1,
+                marker="o", ms=2.5)
+    if len(adj):
+        ax.fill_between(adj["gradient_median"], adj["pct_ci_lower"], adj["pct_ci_upper"],
+                        color=color, alpha=0.2, linewidth=0)
+        ax.plot(adj["gradient_median"], adj["pct"], color=color, lw=1.6, marker="o", ms=3)
+
+
+def _trim_windows(gd, cfg, gradient_values=None):
+    """Keeps windows whose median lies within the trim percentiles of the gradient's values."""
+    trim = cfg.get("plot_trim", COMBINED_TRIM_PCT)
+    if not trim:
+        return gd
+    vals = (np.asarray(gradient_values, dtype=float) if gradient_values is not None
+            else gd["gradient_median"].to_numpy(float))      # fallback: the window medians
+    vals = vals[np.isfinite(vals)]
+    lo, hi = np.percentile(vals, trim)
+    keep = gd["gradient_median"].between(lo, hi)
+    dropped = gd.loc[~keep, ["window_lower", "window_upper"]].drop_duplicates()
+    if len(dropped):
+        print(f"  [combined figure] {cfg['label']}: dropped {len(dropped)} end window(s) outside "
+              f"P{trim[0]:g}-P{trim[1]:g} ({lo:.3g}-{hi:.3g})")
+    return gd[keep]
+
+
+def plot_gradients_combined(grad_results, keys, savepath=None, gradient_values=None):
+    """
+    Rows = gradients (keys, e.g. % conifer and % rare species), columns = diversity metrics
+    (individual = grey dashed, mutually adjusted = metric colour, each with its CI band),
+    plus a right-hand column with the COMBINED effect of all metrics rising by 1 SD
+    together (mutually adjusted, black, with CI). Metric panels share a y-axis within each
+    row; the combined panel has its own y-axis, because it is a sum of the metric effects.
+    gradient_values = {key: raw gradient values of the plots}, used to truncate the ends
+    (COMBINED_TRIM_PCT); without it the window medians are used instead.
+    """
+    ci_pct = round((1 - CI_ALPHA) * 100)
+    metrics = list(DIVERSITY_METRICS)
+    n_r, n_m = len(keys), len(metrics)
+    fig = plt.figure(figsize=(2.6 * n_m + 3.0, 2.9 * n_r + 0.9))
+    gs = fig.add_gridspec(n_r, n_m + 1, width_ratios=[1] * n_m + [1.15], wspace=0.2, hspace=0.45)
+
+    for r, key in enumerate(keys):
+        cfg = GRADIENTS[key]
+        gd = _trim_windows(grad_results[key], cfg, (gradient_values or {}).get(key))
+        row_axes = []
+        for j, m in enumerate(metrics):
+            ax = fig.add_subplot(gs[r, j], sharey=row_axes[0] if row_axes else None,
+                                 sharex=row_axes[0] if row_axes else None)
+            row_axes.append(ax)
+            color = METRIC_COLORS.get(m, COLOR_NEG)
+            _draw_metric_lines(ax, gd[gd["diversity_metric"] == m], color)
+            ax.axhline(0, color="#1a1a1a", lw=0.8, zorder=0)
+            if r == 0:
+                ax.set_title(m, fontsize=9.5, color=color)
+            if j == 0:
+                ax.set_ylabel(f"Along {cfg['label']}\n% change in {_outcome_name()}\n"
+                              f"per 1 SD of diversity", fontsize=8.5)
+            else:
+                ax.tick_params(labelleft=False)
+            ax.set_xlabel(cfg["axis_label"], fontsize=7.5)
+
+        # Combined effect of all metrics (+1 SD each), with the adjusted metric lines behind it
+        axt = fig.add_subplot(gs[r, n_m], sharex=row_axes[0])
+        tot = gd[gd["model"] == "total"].sort_values("gradient_median")
+        if SHOW_METRICS_IN_TOTAL_PANEL:
+            for m in metrics:
+                adj = gd[(gd["model"] == "mutually_adjusted") & (gd["diversity_metric"] == m)]
+                adj = adj.sort_values("gradient_median")
+                axt.plot(adj["gradient_median"], adj["pct"], color=METRIC_COLORS.get(m, COLOR_NEG),
+                         lw=0.9, alpha=0.6)
+        axt.fill_between(tot["gradient_median"], tot["pct_ci_lower"], tot["pct_ci_upper"],
+                         color=TOTAL_COLOR, alpha=0.15, linewidth=0)
+        axt.plot(tot["gradient_median"], tot["pct"], color=TOTAL_COLOR, lw=2.2, marker="o", ms=3.5)
+        axt.axhline(0, color="#1a1a1a", lw=0.8, zorder=0)
+        if r == 0:
+            axt.set_title(f"Combined effect\n({TOTAL_LABEL}, adjusted)", fontsize=9.5,
+                          color=TOTAL_COLOR, fontweight="bold")
+        axt.set_xlabel(cfg["axis_label"], fontsize=7.5)
+        axt.yaxis.set_label_position("right")
+        axt.yaxis.tick_right()
+        axt.spines["right"].set_visible(True)
+        axt.spines["left"].set_visible(False)
+        axt.set_ylabel(f"% change in {_outcome_name()}", fontsize=8.5)
+
+        x_lo, x_hi = gd["gradient_median"].min(), gd["gradient_median"].max()
+        pad = COMBINED_X_PAD * (x_hi - x_lo) if x_hi > x_lo else 1.0
+        row_axes[0].set_xlim(x_lo - pad, x_hi + pad)   # fitted to the windows actually drawn
+        if cfg.get("invert"):
+            row_axes[0].invert_xaxis()     # shared x, so the whole row is inverted
+        for ax in row_axes + [axt]:
+            ax.tick_params(labelsize=7.5)
+
+    from matplotlib.lines import Line2D
+    from matplotlib.patches import Patch
+    handles = [Line2D([], [], color="#555555", lw=1.6, marker="o", ms=3,
+                      label="Mutually adjusted (metric colour)"),
+               Line2D([], [], color="#7f7f7f", lw=1.1, ls="--", marker="o", ms=2.5,
+                      label="Individual"),
+               Line2D([], [], color=TOTAL_COLOR, lw=2.2, marker="o", ms=3.5,
+                      label=f"Combined: {TOTAL_LABEL} (adjusted)"),
+               Patch(color="#555555", alpha=0.2, label=f"{ci_pct}% CI")]
+    fig.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, 0.02), ncol=4,
+               fontsize=8, frameon=False)
+    _save_publication_figure(fig, savepath)
+    if savepath:
+        fig.savefig(os.path.splitext(savepath)[0] + ".pdf", bbox_inches="tight")
+    return fig
+
+
+def run_gradient_analysis(df, key, outdir=OUT_GRADIENT_DIR):
+    cfg = GRADIENTS[key]
     os.makedirs(outdir, exist_ok=True)
-    grad_df = compute_conifer_gradient(df)
-    grad_df.to_csv(_out(outdir, OUT_CONIFER_GRADIENT), index=False)
-    inter_df = conifer_interaction_tests(df)
-    inter_df.to_csv(_out(outdir, OUT_CONIFER_INTERACTION), index=False)
-    print("\n[run_conifer_gradient_analysis] Interaction with % conifer:")
+    if cfg["col"] not in df.columns:
+        raise KeyError(f"Gradient '{key}': column '{cfg['col']}' not found in the residuals table.")
+
+    grad_df = compute_gradient(df, cfg)
+    grad_df.to_csv(_out(outdir, cfg["out_csv"]), index=False)
+
+    inter_df = gradient_interaction_tests(df, cfg)
+    inter_df.to_csv(_out(outdir, cfg["out_inter"]), index=False)
+    print(f"\n[run_gradient_analysis] Interaction with {cfg['label']} (gamma per {cfg['unit_label']}):")
     print(inter_df.to_string(index=False))
-    plot_conifer_gradient(grad_df, inter_df, savepath=_out(outdir, OUT_CONIFER_GRADIENT_FIG))
+
+    plot_gradient_by_metric(grad_df, cfg, savepath=_out(outdir, cfg["out_fig_by_metric"]))
+    plot_gradient(grad_df, cfg, "individual", savepath=_out(outdir, cfg["out_fig_individual"]))
+    plot_gradient(grad_df, cfg, "mutually_adjusted", savepath=_out(outdir, cfg["out_fig_adjusted"]))
     return grad_df, inter_df
 
 
@@ -651,7 +876,7 @@ def compute_adjusted_effects_dataframe(df, model, X, stability_col=STABILITY_COL
         eff, lo, hi = _term_centered_effect(model, term, X[term].values, X[term].mean())
         for i in range(len(pids)):
             rows.append({pid_col: pids[i], "diversity_metric": term,
-                         "stability_residual": s_vals[i],
+                         "diversity_residual": X[term].values[i], "stability_residual": s_vals[i],
                          "adjusted_effect": eff[i], "adjusted_effect_ci_lower": lo[i],
                          "adjusted_effect_ci_upper": hi[i]})
     return pd.DataFrame(rows)
@@ -819,18 +1044,29 @@ def plot_relative_importance(ri_df, savepath):
 
 
 if __name__ == "__main__":
+
     residuals_all = pd.read_csv(RESIDUALS_PATH)
     residuals_all.drop(columns=["residual_pct_rare_species"], inplace=True, errors="ignore")
     residuals_all = residuals_all.merge(PID_df[["PID", "STDAGE", "percent_conifer"]], on="PID", how="left")
 
-    # Effects along the full conifer gradient (one row of panels)
-    grad_df, inter_df = run_conifer_gradient_analysis(residuals_all)
+    # Raw % rare species per plot (the gradient uses the un-residualised value)
+    if "pct_rare" in RUN_GRADIENTS:
+        abundance_df = pd.read_parquet(RARITY_PATH)
+        residuals_all = residuals_all.merge(
+            abundance_df[["PID", PCT_RARE_RAW_COL]].drop_duplicates("PID"), on="PID", how="left")
 
-    residuals_df = residuals_all  # [residuals_all.percent_conifer > 90]
+    # Slope of each diversity metric along each gradient (individual + mutually adjusted figures)
+    gradient_results = {key: run_gradient_analysis(residuals_all, key) for key in RUN_GRADIENTS}
+    plot_gradients_combined({k: v[0] for k, v in gradient_results.items()}, RUN_GRADIENTS,
+                            savepath=_out(OUT_GRADIENT_DIR, OUT_GRADIENTS_COMBINED_FIG),
+                            gradient_values={k: residuals_all[GRADIENTS[k]["col"]].dropna().to_numpy()
+                                             for k in RUN_GRADIENTS})
+
+    residuals_df = residuals_all
     ind_results, ind_summary, ind_effects = run_individual_effect_analysis(residuals_df, outdir=OUTDIR)
     adj_model, vif_df, adj_summary, adj_effects = run_mutually_adjusted_analysis(residuals_df, outdir=OUTDIR)
 
-    adj_effects.merge(PID_df[['PID', 'lon', 'lat']], on='PID', how='left'
-    ).to_csv("results/mutually_adjusted_effects_per_observation_with_coords.csv", index=False)  
+    adj_effects.merge(PID_df[["PID", "lon", "lat"]], on="PID", how="left"
+    ).to_csv(OUT_ADJUSTED_PER_OBS_COORDS, index=False)
 
     plt.show()

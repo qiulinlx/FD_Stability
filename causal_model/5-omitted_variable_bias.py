@@ -103,8 +103,8 @@ def crossfit(X, target, folds):                                            # NEW
     return pred
 
 # Data Cleaning and Preprocessing
-fd_df = pd.read_csv("data/final/final_dataset_ba_v2.csv")
-pred_df=pd.read_csv('results/step_1_residuals4_rarity.csv')
+fd_df = pd.read_csv("data/final/final_dataset_ba.csv")
+pred_df=pd.read_csv('results/step_1_residuals.csv')
 PID_df= pd.read_csv('data/lookup/PID_location_v3.csv')
 
 fd_df=fd_df.merge(PID_df[['PID', 'STDAGE']], on='PID', how='left')
@@ -126,10 +126,10 @@ fd_df = fd_df[fd_df["WSCI"] != 0]
 
 fd_df = fd_df[fd_df["disturbance_value"] != -2147483648]
 
-diversity_vars = ["Species Richness", "Shannon Diversity", "Raos_Q", "Functional_Evenness"]
+diversity_vars = ["Species Richness",  "Raos_Q", "Functional_Evenness"]
 
 # NEW: must match the covariates and XGBoost settings used in step 1
-exclude = ['PID', 'std npp', "Simpson's Index", 'WSCI', 'treecover2000'] + diversity_vars
+exclude = ['PID', 'std npp', "Simpson's Index", 'WSCI', 'treecover2000',  "Shannon Diversity"] + diversity_vars
 env_cols = [c for c in fd_df.columns if c not in exclude]
 
 xgb_params = dict(n_estimators=300, max_depth=4, learning_rate=0.05)
@@ -195,9 +195,9 @@ for diversity in diversity_vars:
 results_df = pd.DataFrame(results).T
 print(results_df[['theta', 'se', 'theta_lower', 'theta_upper', 'ci_lower', 'ci_upper', 'rv', 'rva']])
 
-results_df.to_csv("results/ovb_sensitivity_results.csv", index=True)
+results_df.to_csv("results/ovb/ovb_sensitivity_results.csv", index=True)
 
 bench_df = pd.DataFrame(bench_rows).set_index(['diversity', 'benchmark'])  # NEW
 
-bench_df.to_csv("results/ovb_sensitivity_benchmark.csv", index=True)
+bench_df.to_csv("results//ovb/ovb_sensitivity_benchmark.csv", index=True)
 print(bench_df.round(5))                                                   # NEW

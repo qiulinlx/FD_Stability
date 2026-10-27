@@ -38,7 +38,7 @@ params = {
 # Data Cleaning and Preprocessing
 fd_df = pd.read_csv("data/final/final_dataset_ba.csv")
 PID_df= pd.read_csv('data/lookup/PID_location_v3.csv')
-abundance_df = pd.read_parquet('data/final/dataset_relba_10.parquet')
+abundance_df = pd.read_parquet('data/final/dataset_rarity.parquet')
 
 fd_df=fd_df.merge(PID_df[['PID','lat','lon', 'biome', 'STDAGE']], on='PID', how='left')
 fd_df=fd_df.merge(abundance_df[['PID','pct_rare_species']], on='PID', how='left')

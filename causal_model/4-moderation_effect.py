@@ -1,60 +1,39 @@
 """
-Continuous moderation of the diversity -> stability effect, estimated in
-the DML final stage as
+Moderation of the diversity -> stability effect by RARITY and % CONIFER.
 
-    Y~_i = (theta_0 + theta_1 * V_i) * D~_i + eps_i
-         =  theta_0 * D~_i + theta_1 * (V_i * D~_i) + eps_i
+FIGURE 1: coefficient (forest) plot
+  One model per diversity metric, fitted on the DML residuals:
 
-where
-    Y~  = residualised stability       (STABILITY_COL)
-    D~  = residualised diversity metric (one of DIVERSITY_METRICS)
-    (With REPORT_AS_STABILITY = True, Y~ is multiplied by -1 so that
-     positive effects mean diversity drives NPP SD down, i.e. increases
-     stability = inverse SD.)
-    V   = moderator (WSCI or rarity), MEAN-CENTRED (and optionally scaled
-          to unit SD), so that
-            theta_0 = effect of diversity at the AVERAGE level of V
-            theta_1 = change in that effect per 1 unit (or 1 SD) of V
+      Y~ = a + theta_0 D~ + theta_R (D~ x R) + theta_C (D~ x C) [+ theta_RC (D~ x R x C)]
+             [+ R + C (+ R x C)]                     (moderator main effects, optional)
+             [+ the other diversity metrics]         (optional adjustment)
+             + eps
 
-SCALE  (NET_EFFECT_SCALE)
-  "own_total" (default): every effect of metric j is expressed as a % of that
-  SAME metric's unmoderated, UNADJUSTED effect, |theta_total_j|, from
-      Y~ = theta_total_j * D~_j + eps
-  fitted on the same rows / standardisation / sign. So 100% = the metric's
-  original effect without moderation; theta_1 = -50% means each 1 SD of the
-  moderator shifts the effect by half of its original size. The sign is kept
-  (positive = stabilising). Unstable when theta_total_j is close to 0: the
-  script warns and you should report raw units for that metric.
+  R = residual % rare species, C = % conifer; both mean-centred and scaled to 1 SD, so
+      theta_0  = effect of diversity at AVERAGE rarity and AVERAGE % conifer
+      theta_R  = change in that effect per 1 SD of rarity     (at average % conifer)
+      theta_C  = change in that effect per 1 SD of % conifer  (at average rarity)
+      theta_RC = change in theta_R per 1 SD of % conifer       (if INCLUDE_THREE_WAY)
+  Point = estimate, bar = (1 - CI_ALPHA) CI from HC3 standard errors.
+  Asterisk: main effect p < CI_ALPHA; interactions significant after Benjamini-Hochberg FDR
+  (across all interaction terms of all metrics).
 
-  "total_sum_abs": % of the TOTAL diversity effect = sum over metrics j of
-  |theta_total_j| (the "sum of absolute effects" scale used for the individual /
-  mutually adjusted ranking charts). The denominator is treated as fixed, so
-  CIs reflect uncertainty in each metric's own effect only.
+FIGURE 2: slopes by forest type x rarity tier
+  Forest types from RAW % conifer (FOREST_TYPES):
+      Broadleaf  < 10 % conifer,   Mixed 25-75 %,   Conifer-dominated > 90 %.
+  Rarity tiers (RARITY_TIERS, rank-based percentiles of rarity): bottom 10 % and top 10 %,
+  computed WITHIN each forest type (RARITY_TIERS_WITHIN_FOREST_TYPE = True) or across all
+  plots (False). In every forest type x rarity cell the slope of Y~ on D~ is fitted by OLS
+  (HC3 CI). Above each forest type: FDR-corrected p of the high-vs-low rarity difference
+  (D~ x high-rarity interaction within that forest type).
 
-  "none": raw theta units.
+SCALE (NET_EFFECT_SCALE)
+  "own_total": effects expressed as % of the metric's own unmoderated, unadjusted slope
+               |theta_total| (Y~ on D~ on the same rows). 100 % = the original effect.
+  "none":      raw units (change in the stability residual per 1 SD of diversity).
 
-INPUTS / OUTPUTS
-  The input path, the output directory (OUTDIR) and every output file name
-  are defined in the "Input and output files" block below the imports.
-  Names containing "{moderator}" are filled in per moderator (lower case).
-
-TIER BOXPLOTS (bootstrap, mutually adjusted for the other metrics)
-  Tiers are tertiles of each moderator (rank-based, so ties cannot merge bins):
-  Low / Medium / High WSCI and rarity. WITHIN each tier, the slope of Y~ on the
-  focal metric is re-estimated on N_BOOT bootstrap resamples, with the OTHER
-  metrics entered as separate covariates, so the focal slope is the effect with
-  the others held constant. All metrics are fitted on ONE common set of rows.
-  Box = interquartile range, line = median, whiskers = 2.5th to 97.5th
-  percentiles. Asterisk = two-sided bootstrap p < BOOT_ALPHA (not FDR-corrected).
-
-AXES: the conditional-effect plots share x / y limits across all moderators.
-STANDARD ERRORS: HC3.
-MULTIPLE TESTING: Benjamini-Hochberg FDR across all theta_1 tests.
-
-ASSUMPTIONS TO CHECK
-  * Linearity of theta(V) in V (see tertile-slope check on the conditional plots).
-  * V should be among the nuisance-model covariates; otherwise set
-    INCLUDE_MODERATOR_MAIN_EFFECT = True.
+With REPORT_AS_STABILITY = True the outcome is multiplied by -1, so positive = diversity
+lowers NPP SD = more stable. All metrics and both moderators use ONE common set of rows.
 """
 
 import os
@@ -62,154 +41,172 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.transforms as mtransforms
-from matplotlib.patches import Patch
+from matplotlib.lines import Line2D
 import statsmodels.api as sm
 from statsmodels.stats.multitest import multipletests
 from scipy import stats
 
 # ===============================================================
-# Input and output files  (edit names here only)
+# Input and output files
 # ===============================================================
 
-# Input
 RESIDUALS_PATH = "results/step_2_residuals_merged.csv"
+PID_LOOKUP_PATH = "data/lookup/PID_location_v3.csv"
+OUTDIR = "results/moderation"
 
-# Output directory (all outputs below are written here)
-OUTDIR = "results"
+OUT_COEF_CSV = "moderation_coefficients_rarity_conifer.csv"
+OUT_COEF_FIG = "moderation_coefficients_rarity_conifer.png"          # + .pdf
+OUT_CELL_CSV = "moderation_slopes_foresttype_x_rarity.csv"
+OUT_CELL_FIG = "moderation_slopes_foresttype_x_rarity.png"           # + .pdf
 
-# Output file names. "{moderator}" is replaced by the moderator name in lower case.
-OUT_SUMMARY = "moderation_summary.csv"
-OUT_CONDITIONAL_FIG = "moderation_conditional_{moderator}.png"
-OUT_THETA1_FOREST_FIG = "moderation_theta1_forest_marginal.png"
-OUT_TIER_BOOT_CSV = "moderation_tier_bootstrap_{moderator}.csv"
-OUT_TIER_BOX_FIG = "moderation_tier_boxplots_{moderator}.png"
-
-
-def _out(filename, outdir=None, moderator=None):
-    """Full output path: OUTDIR (or outdir) + filename, filling in {moderator} if given."""
-    if moderator is not None:
-        filename = filename.format(moderator=moderator.lower())
-    return os.path.join(outdir or OUTDIR, filename)
-
-
-# ---------------------------------------------------------------
-# Column names
-# ---------------------------------------------------------------
+# ===============================================================
+# Columns
+# ===============================================================
 
 DIVERSITY_METRICS = {
     "Rao's Q": "residual_raos_q",
     "Functional Evenness": "residual_functional_evenness",
-    "Shannon": "residual_shannon",
     "Species richness": "residual_species_richness",
 }
-STABILITY_COL = "residual_std_npp"   # Y~
+STABILITY_COL = "residual_std_npp"
+RARITY_COL = "residual_pct_rare_species"
+CONIFER_COL = "percent_conifer"          # raw %, 0-100 (0-1 is detected and converted)
 
-# Residualised moderators: "high WSCI" = more structurally complex than the
-# environment predicts. Point these at raw columns for moderation by actual values.
-MODERATORS = {
-    "WSCI": "residual_wsci",
-    "Rarity": "residual_pct_rare_species",
-    "Conifer": "percent_conifer"
-}
-
-# ---------------------------------------------------------------
+# ===============================================================
 # Settings
-# ---------------------------------------------------------------
+# ===============================================================
 
-STANDARDISE_MODERATOR = True
 STANDARDISE_TREATMENT = True
-INCLUDE_INTERCEPT = False
-INCLUDE_MODERATOR_MAIN_EFFECT = False
+STANDARDISE_MODERATOR = True
+INCLUDE_INTERCEPT = True
+# % conifer is not a residual, so it is probably not in the nuisance models: keep its
+# main effect (and rarity's) in the model so the interactions do not absorb it.
+INCLUDE_MODERATOR_MAIN_EFFECTS = True
+INCLUDE_THREE_WAY = True                 # D x Rarity x Conifer term in Figure 1
+ADJUST_FOR_OTHER_METRICS = False         # True = other metrics as covariates (both figures)
 
 REPORT_AS_STABILITY = True
 OUTCOME_SIGN = -1 if REPORT_AS_STABILITY else 1
 
-# "own_total": % of each metric's own unmoderated effect (100% = original effect).
-# "total_sum_abs": % of the total diversity effect (sum of |unmoderated effects|).
-# "none": raw theta units.
-NET_EFFECT_SCALE = "own_total"
-# Warn when a metric's own unmoderated effect is this small relative to the
-# largest one (its rescaled values will be very large and unstable).
+NET_EFFECT_SCALE = "own_total"           # "own_total" or "none"
 OWN_TOTAL_WARN_FRAC = 0.1
 
 CI_ALPHA = 0.05
 FDR_ALPHA = 0.05
-N_GRID = 200
-N_BINS_CHECK = 3
-RUG_MAX_POINTS = 3000
-RANDOM_SEED = 42
-GRID_N_COLS = 2
 
-AXIS_PAD_FRAC = 0.05
+# Forest types in RAW % conifer: (label, lower, upper, closed), closed as in pd.Interval
+# ("left", "right", "both", "neither").
+FOREST_TYPES = [
+    ("Broadleaf (< 10% conifer)", -np.inf, 10, "neither"),
+    ("Mixed (25\u201375% conifer)", 25, 75, "both"),
+    ("Conifer-dominated (> 90% conifer)", 90, np.inf, "neither"),
+]
+# Rarity tiers as percentile ranges (rank-based): (label, lower pct, upper pct)
+RARITY_TIERS = [
+    ("Low rarity (bottom 10%)", 0, 10),
+    ("High rarity (top 10%)", 90, 100),
+]
+RARITY_TIERS_WITHIN_FOREST_TYPE = True
+MIN_CELL_N = 30
 
-MODERATOR_COLORS = {"WSCI": "#9975BA", "Rarity": "#7DDFE7"}
-
-# ---- Bootstrap tier boxplot settings ----
-N_BOOT = 1000
-BOOT_ALPHA = 0.05
-BOX_WHIS = (2.5, 97.5)
-TIER_LABELS = ["Low", "Medium", "High"]
 METRIC_COLORS = {
     "Rao's Q": "#4B2BC4",
     "Functional Evenness": "#A47CC7",
     "Shannon": "#5ED6DA",
     "Species richness": "#14B8A0",
 }
+TERM_LABELS = {
+    "D": "Main effect (avg. rarity & conifer)",
+    "DxRarity": "\u00d7 Rarity",
+    "DxConifer": "\u00d7 % conifer",
+    "DxRarityxConifer": "\u00d7 Rarity \u00d7 % conifer",
+}
+TERM_COLORS = {
+    "D": "#333333",
+    "DxRarity": "#1C33B5",
+    "DxConifer": "#087127",
+    "DxRarityxConifer": "#B5651C",
+}
+GROUP_TINT = 0.40     # lightest group colour = this share of the metric colour
+GROUP_SHADE = 0.55    # darkest group colour = metric colour mixed with this much black
 
 
-# ---------------------------------------------------------------
+def _out(filename, outdir=None):
+    return os.path.join(outdir or OUTDIR, filename)
+
+
+# ===============================================================
 # Data preparation
-# ---------------------------------------------------------------
+# ===============================================================
 
-def _prepare(df, div_col, mod_cols, stability_col=STABILITY_COL):
-    """Y (signed outcome), D (optionally standardised), V_<name> (centred / scaled)."""
-    cols = [stability_col, div_col] + list(mod_cols.values())
+def _ols_slope(D, Y):
+    D, Y = np.asarray(D, float), np.asarray(Y, float)
+    if INCLUDE_INTERCEPT:
+        Dc = D - D.mean()
+        return float((Dc * (Y - Y.mean())).sum() / (Dc * Dc).sum())
+    return float((D * Y).sum() / (D * D).sum())
+
+
+def prepare(df):
+    """Y, standardised D (one column per metric), standardised and raw moderators, on common rows."""
+    cols = [STABILITY_COL] + list(DIVERSITY_METRICS.values()) + [RARITY_COL, CONIFER_COL]
+    missing = [c for c in cols if c not in df.columns]
+    if missing:
+        raise KeyError(f"Columns not found in the data: {missing}")
     sub = df[cols].dropna().reset_index(drop=True)
 
-    out = pd.DataFrame({"Y": OUTCOME_SIGN * sub[stability_col].astype(float)})
-    d = sub[div_col].astype(float)
-    d_sd = d.std(ddof=1) if STANDARDISE_TREATMENT else 1.0
-    out["D"] = d / d_sd
+    conifer = sub[CONIFER_COL].astype(float)
+    if conifer.max() <= 1.0:
+        print("  NOTE: % conifer looks like a 0-1 proportion; multiplying by 100.")
+        conifer = conifer * 100
+    rarity = sub[RARITY_COL].astype(float)
 
-    mod_info = {}
-    for name, col in mod_cols.items():
-        v = sub[col].astype(float)
-        v_mean = v.mean()
-        v_sd = v.std(ddof=1) if STANDARDISE_MODERATOR else 1.0
-        out[f"V_{name}"] = (v - v_mean) / v_sd
-        mod_info[name] = {"mean": v_mean, "sd": v_sd, "raw": v.values}
-
-    return out, d_sd, mod_info
-
-
-def _prepare_joint(df, diversity_metrics=DIVERSITY_METRICS, moderators=MODERATORS,
-                   stability_col=STABILITY_COL):
-    """
-    ALL metrics and moderators on ONE common set of rows -- needed so every
-    metric can be adjusted for the others within a tier.
-    Returns {"Y", "D" (DataFrame, one standardised column per metric),
-    "V" (DataFrame of moderators), "theta_total", "n"}.
-    """
-    cols = [stability_col] + list(diversity_metrics.values()) + list(moderators.values())
-    sub = df[cols].dropna().reset_index(drop=True)
-
-    Y = OUTCOME_SIGN * sub[stability_col].astype(float).values
-    D = pd.DataFrame(index=sub.index)
-    for name, col in diversity_metrics.items():
+    Y = pd.Series(OUTCOME_SIGN * sub[STABILITY_COL].astype(float).values)
+    D, d_sd = pd.DataFrame(index=sub.index), {}
+    for name, col in DIVERSITY_METRICS.items():
         d = sub[col].astype(float)
-        D[name] = d / (d.std(ddof=1) if STANDARDISE_TREATMENT else 1.0)
-    V = pd.DataFrame({name: sub[col].astype(float) for name, col in moderators.items()})
-    theta_total = {m: _ols_slope(D[m].values, Y) for m in D.columns}
-    print(f"[_prepare_joint] n = {len(sub)} plots with every metric and moderator present")
-    return {"Y": Y, "D": D, "V": V, "theta_total": theta_total, "n": len(sub)}
+        d_sd[name] = d.std(ddof=1) if STANDARDISE_TREATMENT else 1.0
+        D[name] = d / d_sd[name]
+
+    raw = pd.DataFrame({"Rarity": rarity, "Conifer": conifer})
+    V, v_info = pd.DataFrame(index=sub.index), {}
+    for name in raw.columns:
+        v = raw[name]
+        sd = v.std(ddof=1) if STANDARDISE_MODERATOR else 1.0
+        V[name] = (v - v.mean()) / sd
+        v_info[name] = {"mean": v.mean(), "sd": sd}
+
+    theta_total = {m: _ols_slope(D[m], Y) for m in D.columns}
+    print(f"[prepare] n = {len(sub)} plots with every metric and moderator present")
+    return {"Y": Y, "D": D, "V": V, "raw": raw, "d_sd": d_sd, "v_info": v_info,
+            "theta_total": theta_total, "n": len(sub)}
 
 
-def _design(prep, mod_names):
-    X = pd.DataFrame({"D": prep["D"]})
-    for name in mod_names:
-        X[f"DxV_{name}"] = prep["D"] * prep[f"V_{name}"]
-        if INCLUDE_MODERATOR_MAIN_EFFECT:
-            X[f"V_{name}"] = prep[f"V_{name}"]
+def scale_factors(prep):
+    """{metric: multiplier} from raw theta units to the reporting scale."""
+    th = prep["theta_total"]
+    if NET_EFFECT_SCALE != "own_total":
+        return {m: 1.0 for m in th}
+    largest = max(abs(v) for v in th.values())
+    k = {}
+    for m, v in th.items():
+        if abs(v) < OWN_TOTAL_WARN_FRAC * largest:
+            print(f"  WARNING: {m}'s unmoderated effect is close to 0; its % values will be "
+                  f"very large and unstable. Consider NET_EFFECT_SCALE = 'none'.")
+        k[m] = 100.0 / abs(v) if abs(v) > 0 else 1.0
+    return k
+
+
+def _scaled():
+    return NET_EFFECT_SCALE == "own_total"
+
+
+# ===============================================================
+# Model helpers
+# ===============================================================
+
+def _design(cols):
+    X = pd.DataFrame(cols)
     if INCLUDE_INTERCEPT:
         X = sm.add_constant(X, has_constant="add")
     return X
@@ -220,544 +217,354 @@ def _fit(y, X):
     return sm.OLS(np.asarray(y, dtype=float), X).fit(cov_type="HC3")
 
 
-def _ols_slope(D, Y):
-    """Closed-form OLS slope of Y on D (with or without intercept)."""
-    if INCLUDE_INTERCEPT:
-        Dc = D - D.mean()
-        return float((Dc * (Y - Y.mean())).sum() / (Dc * Dc).sum())
-    return float((D * Y).sum() / (D * D).sum())
-
-
-# ---------------------------------------------------------------
-# Model fitting
-# ---------------------------------------------------------------
-
-def fit_marginal_models(df, diversity_metrics=DIVERSITY_METRICS, moderators=MODERATORS):
-    """One model per (metric, moderator): Y~ = (theta_0 + theta_1 V) D~ + eps."""
-    results = {}
-    for metric_name, div_col in diversity_metrics.items():
-        results[metric_name] = {}
-        for mod_name, mod_col in moderators.items():
-            prep, d_sd, mod_info = _prepare(df, div_col, {mod_name: mod_col})
-            res = _fit(prep["Y"], _design(prep, [mod_name]))
-            results[metric_name][mod_name] = {
-                "res": res, "prep": prep, "d_sd": d_sd,
-                "mod_info": mod_info[mod_name], "n": len(prep),
-                # unmoderated total effect on the same rows / scale / sign
-                "theta_total": _ols_slope(prep["D"].values, prep["Y"].values),
-            }
-    return results
-
-
-# ---------------------------------------------------------------
-# Scale: % of the total diversity effect
-# ---------------------------------------------------------------
-
-def total_diversity_effect(marginal_results, mod_name):
-    """Total diversity effect for one moderator's rows: sum_j |theta_total_j|."""
-    return sum(abs(mods[mod_name]["theta_total"]) for mods in marginal_results.values())
-
-
-_WARNED = set()
-
-
-def scale_factor(marginal_results, mod_name, metric_name):
-    """Multiplier from theta units to the reporting scale for one metric (1 if unscaled)."""
-    if NET_EFFECT_SCALE == "total_sum_abs":
-        denom = total_diversity_effect(marginal_results, mod_name)
-    elif NET_EFFECT_SCALE == "own_total":
-        denom = abs(marginal_results[metric_name][mod_name]["theta_total"])
-        largest = max(abs(m[mod_name]["theta_total"]) for m in marginal_results.values())
-        key = (metric_name, mod_name)
-        if denom < OWN_TOTAL_WARN_FRAC * largest and key not in _WARNED:
-            _WARNED.add(key)
-            print(f"  WARNING: {metric_name}'s unmoderated effect ({mod_name} rows) is close to 0; "
-                  f"its values relative to that effect will be very large and unstable.")
-    else:
-        return 1.0
-    if denom <= 0:
-        return 1.0
-    return 100.0 / denom
-
-
-def joint_scale_factors(joint):
-    """
-    Scale factors {metric: multiplier} for the TIER boxplots, computed from the
-    common-row (joint) data. 100% = the metric's own unmoderated, UNADJUSTED
-    effect ("own_total"), or the sum of |those effects| ("total_sum_abs").
-    """
-    th = joint["theta_total"]
-    if NET_EFFECT_SCALE == "total_sum_abs":
-        denom = sum(abs(v) for v in th.values())
-        return {m: (100.0 / denom if denom > 0 else 1.0) for m in th}
-    if NET_EFFECT_SCALE == "own_total":
-        largest = max(abs(v) for v in th.values())
-        k = {}
-        for m, v in th.items():
-            if abs(v) < OWN_TOTAL_WARN_FRAC * largest:
-                print(f"  WARNING: {m}'s unmoderated effect is close to 0; its tier slopes "
-                      f"relative to that effect will be very large and unstable.")
-            k[m] = 100.0 / abs(v) if abs(v) > 0 else 1.0
-        return k
-    return {m: 1.0 for m in th}
-
-
-def _scaled():
-    return NET_EFFECT_SCALE in ("total_sum_abs", "own_total")
-
-
-def _scale_name():
-    return ("% of original (unmoderated) effect" if NET_EFFECT_SCALE == "own_total"
-            else "% of total diversity effect")
-
-
-# ---------------------------------------------------------------
-# Conditional effects and linearity check
-# ---------------------------------------------------------------
-
-def conditional_effect(res, mod_name, v_grid, alpha=CI_ALPHA):
-    """theta(v) = theta_0 + theta_1 v with a pointwise CI from the coefficient covariance."""
-    t1_name = f"DxV_{mod_name}"
-    b0, b1 = res.params["D"], res.params[t1_name]
-    cov = res.cov_params()
-    v00, v11, v01 = cov.loc["D", "D"], cov.loc[t1_name, t1_name], cov.loc["D", t1_name]
-    v_grid = np.asarray(v_grid, dtype=float)
-    effect = b0 + b1 * v_grid
-    se = np.sqrt(np.maximum(v00 + v_grid ** 2 * v11 + 2 * v_grid * v01, 0))
-    z = stats.norm.ppf(1 - alpha / 2)
-    return effect, effect - z * se, effect + z * se
-
-
-def binned_slopes(prep, mod_name, n_bins=N_BINS_CHECK, alpha=CI_ALPHA):
-    """Slope of Y~ on D~ within quantile bins of V: (median_v, slope, ci_lo, ci_hi, n)."""
-    v = prep[f"V_{mod_name}"]
-    bins = pd.qcut(v.rank(method="first"), q=n_bins, labels=False)
-    z = stats.norm.ppf(1 - alpha / 2)
-    out = []
-    for b in range(n_bins):
-        mask = (bins == b).values
-        if mask.sum() < 10:
-            continue
-        Xb = pd.DataFrame({"D": prep.loc[mask, "D"].values})
-        if INCLUDE_INTERCEPT:
-            Xb = sm.add_constant(Xb, has_constant="add")
-        rb = _fit(prep.loc[mask, "Y"].values, Xb)
-        slope, se = rb.params["D"], rb.bse["D"]
-        out.append((float(np.median(v[mask])), slope, slope - z * se, slope + z * se, int(mask.sum())))
+def _control_cols(prep, focal, mask=None):
+    """The other metrics as covariates (empty unless ADJUST_FOR_OTHER_METRICS)."""
+    if not ADJUST_FOR_OTHER_METRICS:
+        return {}
+    out = {}
+    for other in prep["D"].columns:
+        if other != focal:
+            vals = prep["D"][other].to_numpy(float)
+            out[f"adj_{other}"] = vals if mask is None else vals[mask]
     return out
 
 
-# ---------------------------------------------------------------
-# Bootstrap slopes within moderator tiers, adjusted for the other metrics
-# ---------------------------------------------------------------
-
-def _boot_p_two_sided(slopes):
-    n = len(slopes)
-    lower = np.sum(slopes <= 0) / n
-    upper = np.sum(slopes >= 0) / n
-    return float(min(1.0, 2 * min(lower, upper)))
+def _coef(res, name):
+    lo, hi = res.conf_int(alpha=CI_ALPHA).loc[name]
+    return float(res.params[name]), float(lo), float(hi), float(res.pvalues[name])
 
 
-def _tier_base(n_bins):
-    return TIER_LABELS if n_bins == len(TIER_LABELS) else [f"Tier {i + 1}" for i in range(n_bins)]
+def _p_text(p, prefix=""):
+    return prefix + ("$p_{FDR}$ < 0.001" if p < 0.001 else f"$p_{{FDR}}$ = {p:.2g}")
 
 
-def _tier_names(n_bins, mod_name):
-    return [f"{t} {mod_name}" for t in _tier_base(n_bins)]
-
-
-def _tier_ids(values, n_bins=N_BINS_CHECK):
-    """Rank-based tertile ids 0..n_bins-1 (ties cannot merge bins)."""
-    return pd.qcut(pd.Series(values).rank(method="first"), q=n_bins, labels=False).values
-
-
-def _controls(D_all, focal):
-    """The other metrics as separate covariates (None if there are none)."""
-    others = D_all.drop(columns=[focal])
-    return others.values if others.shape[1] else None
-
-
-def _adj_slope(D, Y, C=None):
-    """OLS coefficient on D in Y ~ D (+ C), with or without an intercept (per INCLUDE_INTERCEPT)."""
-    if C is None:
-        return _ols_slope(D, Y)
-    X = np.column_stack([D, C])
-    if INCLUDE_INTERCEPT:
-        X = np.column_stack([np.ones(len(D)), X])
-    k = 1 if INCLUDE_INTERCEPT else 0
-    try:
-        beta = np.linalg.solve(X.T @ X, X.T @ Y)
-    except np.linalg.LinAlgError:
-        beta = np.linalg.lstsq(X, Y, rcond=None)[0]
-    return float(beta[k])
-
-
-def bootstrap_tier_slopes_adjusted(Y, D, C, tier_ids, n_boot=N_BOOT,
-                                   n_bins=N_BINS_CHECK, seed=RANDOM_SEED):
-    """Within each tier, bootstrap the slope of Y on the focal metric D, adjusted for C."""
-    rng = np.random.default_rng(seed)
+def _group_colors(base_color, n):
+    """n ordered shades of base_color: light tint -> base -> dark shade."""
+    base = np.array(plt.matplotlib.colors.to_rgb(base_color))
+    tint = 1 - GROUP_TINT * (1 - base)
+    shade = base * (1 - GROUP_SHADE)
+    if n == 1:
+        return [tuple(base)]
     out = []
-    for b in range(n_bins):
-        idx_b = np.where(tier_ids == b)[0]
-        Db, Yb = D[idx_b], Y[idx_b]
-        Cb = C[idx_b] if C is not None else None
-        n = len(idx_b)
-        slopes = np.empty(n_boot)
-        for k in range(n_boot):
-            i = rng.integers(0, n, n)
-            slopes[k] = _adj_slope(Db[i], Yb[i], Cb[i] if Cb is not None else None)
-        out.append({"tier": b, "n": n, "slopes": slopes,
-                    "estimate": _adj_slope(Db, Yb, Cb), "p": _boot_p_two_sided(slopes)})
+    for t in np.linspace(0, 1, n):
+        c = tint + (base - tint) * (t / 0.5) if t <= 0.5 else base + (shade - base) * ((t - 0.5) / 0.5)
+        out.append(tuple(np.clip(c, 0, 1)))
     return out
 
 
-def run_bootstrap_tiers(joint, mod_name, n_boot=N_BOOT):
-    """Tier slopes for every metric, tiers cut on moderator `mod_name`. Returns {metric: [tier dicts]}."""
-    tier_ids = _tier_ids(joint["V"][mod_name].values)
-    boot = {}
-    for metric in joint["D"].columns:
-        boot[metric] = bootstrap_tier_slopes_adjusted(
-            joint["Y"], joint["D"][metric].values, _controls(joint["D"], metric),
-            tier_ids, n_boot=n_boot)
-    return boot
+# ===============================================================
+# Figure 1: main effect + interactions with rarity and % conifer
+# ===============================================================
+
+def fit_interaction_model(prep, metric):
+    D = prep["D"][metric]
+    R, C = prep["V"]["Rarity"], prep["V"]["Conifer"]
+    cols = {"D": D, "DxRarity": D * R, "DxConifer": D * C}
+    if INCLUDE_THREE_WAY:
+        cols["DxRarityxConifer"] = D * R * C
+    if INCLUDE_MODERATOR_MAIN_EFFECTS:
+        cols["Rarity"], cols["Conifer"] = R, C
+        if INCLUDE_THREE_WAY:
+            cols["RarityxConifer"] = R * C
+    cols.update(_control_cols(prep, metric))
+    return _fit(prep["Y"], _design(cols))
 
 
-def bootstrap_summary_table(boot, mod_name, k=None):
-    """One row per metric x tier; *_rel_total columns are on the plotted scale."""
-    k_map = k or {}
+def build_coef_table(prep, fits, k):
     rows = []
-    for metric_name, tiers in boot.items():
-        kk = k_map.get(metric_name, 1.0)
-        names = _tier_names(len(tiers), mod_name)
-        for t in tiers:
-            lo, hi = np.percentile(t["slopes"], BOX_WHIS)
-            med = float(np.median(t["slopes"]))
+    for metric, res in fits.items():
+        for term, label in TERM_LABELS.items():
+            if term not in res.params.index:
+                continue
+            est, lo, hi, p = _coef(res, term)
+            kk = k[metric]
             rows.append({
-                "tiers_cut_on": mod_name,
-                "tier": names[t["tier"]], "diversity_metric": metric_name,
-                "n": t["n"], "slope_estimate": t["estimate"], "boot_median": med,
-                "boot_ci_lower": lo, "boot_ci_upper": hi,
-                "slope_estimate_rel_total": kk * t["estimate"], "boot_median_rel_total": kk * med,
-                "boot_ci_lower_rel_total": kk * lo, "boot_ci_upper_rel_total": kk * hi,
-                "boot_p_two_sided": t["p"], "significant": t["p"] < BOOT_ALPHA,
+                "diversity_metric": metric, "term": term, "term_label": label, "n": prep["n"],
+                "estimate": est, "ci_lower": lo, "ci_upper": hi, "se_hc3": float(res.bse[term]),
+                "p": p, "theta_total": prep["theta_total"][metric], "scale_factor": kk,
+                "scale_definition": NET_EFFECT_SCALE,
+                "estimate_scaled": kk * est, "ci_lower_scaled": kk * lo, "ci_upper_scaled": kk * hi,
+                "treatment_sd_raw": prep["d_sd"][metric],
+                "rarity_mean_raw": prep["v_info"]["Rarity"]["mean"],
+                "rarity_sd_raw": prep["v_info"]["Rarity"]["sd"],
+                "conifer_mean_raw": prep["v_info"]["Conifer"]["mean"],
+                "conifer_sd_raw": prep["v_info"]["Conifer"]["sd"],
             })
-    return pd.DataFrame(rows)
+    tab = pd.DataFrame(rows)
+    inter = (tab["term"] != "D").to_numpy()
+    tab["p_fdr"] = np.nan
+    rej, p_adj, _, _ = multipletests(tab.loc[inter, "p"].values, alpha=FDR_ALPHA, method="fdr_bh")
+    tab.loc[inter, "p_fdr"] = p_adj
+    tab["significant"] = False
+    tab.loc[inter, "significant"] = rej
+    tab.loc[~inter, "significant"] = tab.loc[~inter, "p"] < CI_ALPHA
+    return tab
 
 
-# ---------------------------------------------------------------
-# Labels
-# ---------------------------------------------------------------
+def plot_coefficients(tab, savepath):
+    metrics = list(dict.fromkeys(tab["diversity_metric"]))
+    terms = [t for t in TERM_LABELS if t in set(tab["term"])]
+    n_t = len(terms)
+    block = n_t + 1                                     # + 1 row for the metric header
 
-def _target():
-    return "stability (1/NPP SD)" if REPORT_AS_STABILITY else "NPP SD"
+    fig, ax = plt.subplots(figsize=(8.5, 0.42 * len(metrics) * block + 1.8))
+    trans = mtransforms.blended_transform_factory(ax.transAxes, ax.transData)
+    yticks, ylabels, x_ext = [], [], [0.0]
 
-
-def _effect_label():
-    if _scaled():
-        return r"Effect of diversity, $\theta(V)$" + f"\n({_scale_name()})"
-    return (f"Effect of diversity on {_target()}, " + r"$\theta(V)$"
-            + ("\n(per 1 SD of diversity)" if STANDARDISE_TREATMENT else ""))
-
-
-def _slope_label():
-    base = "Tier slope, adjusted for the other metrics (bootstrap)"
-    return f"{base}\n{_scale_name()}" if _scaled() else base
-
-
-def _moderator_label(mod_name):
-    return f"{mod_name} (" + ("SD from mean" if STANDARDISE_MODERATOR else "centred") + ")"
-
-
-# ---------------------------------------------------------------
-# Tier boxplots
-# ---------------------------------------------------------------
-
-def _draw_box(ax, slopes, pos, color):
-    """One horizontal bootstrap box; returns the whisker ends (for axis limits)."""
-    bp = ax.boxplot(slopes, positions=[pos], vert=False, widths=0.7, whis=BOX_WHIS,
-                    patch_artist=True, showfliers=False, manage_ticks=False)
-    for box in bp["boxes"]:
-        box.set(facecolor=color, edgecolor="#555555", alpha=0.85, linewidth=1)
-    for med in bp["medians"]:
-        med.set(color="#333333", linewidth=1.3)
-    for part in bp["whiskers"] + bp["caps"]:
-        part.set(color="#555555", linewidth=1)
-    lo, hi = np.percentile(slopes, BOX_WHIS)
-    return lo, hi
-
-
-def _finish_tier_axes(ax, x_extent, xlim, yticks, ylabels, title, handles):
-    ax.axvline(0, color="gray", linestyle=":", linewidth=1)
-    ax.set_yticks(yticks)
-    ax.set_yticklabels(ylabels, fontsize=8)
-    ax.set_xlabel(_slope_label())
-    ax.set_title(title, fontsize=10)
-    if xlim is None:
-        pad = (max(x_extent) - min(x_extent)) * 0.08
-        xlim = (min(x_extent + [0.0]) - pad, max(x_extent + [0.0]) + pad)
-    ax.set_xlim(*xlim)
-    ax.legend(handles=handles, loc="upper right", fontsize=8, frameon=True)
-    for spine in ["top", "right"]:
-        ax.spines[spine].set_visible(False)
-
-
-def plot_tier_boxplots(boot, mod_name, savepath, k=None, xlim=None):
-    """Tiers cut on a MODERATOR: one block per tier, one box per metric; k = {metric: scale factor}."""
-    k = k or {}
-    metric_names = list(boot.keys())
-    n_m = len(metric_names)
-    n_tiers = len(next(iter(boot.values())))
-    tier_names = _tier_names(n_tiers, mod_name)
-    fallback = plt.cm.tab10(np.arange(n_m))
-
-    fig, ax = plt.subplots(figsize=(9, 0.55 * n_m * n_tiers + 2.5))
-    yticks, ylabels, x_extent = [], [], []
-
-    for t in range(n_tiers):
-        base = (n_tiers - 1 - t) * (n_m + 1)
-        for m_i, metric_name in enumerate(metric_names):
-            res = boot[metric_name][t]
-            slopes = k.get(metric_name, 1.0) * res["slopes"]
-            color = METRIC_COLORS.get(metric_name, fallback[m_i])
-            pos = base + m_i
-            lo, hi = _draw_box(ax, slopes, pos, color)
-            x_extent += [lo, hi]
+    for i, metric in enumerate(metrics):
+        base = (len(metrics) - 1 - i) * block
+        if i > 0:
+            ax.axhline(base + block - 0.5, color="#e5e5e5", lw=0.8, zorder=0)
+        for j, term in enumerate(terms):
+            row = tab[(tab.diversity_metric == metric) & (tab.term == term)].iloc[0]
+            pos = base + (n_t - 1 - j)
+            est, lo, hi = row["estimate_scaled"], row["ci_lower_scaled"], row["ci_upper_scaled"]
+            ax.errorbar(est, pos, xerr=[[est - lo], [hi - est]], fmt="o",
+                        color=TERM_COLORS[term], ecolor=TERM_COLORS[term], markersize=6.5,
+                        markeredgecolor="#333333", markeredgewidth=0.7,
+                        elinewidth=2, capsize=3.5, zorder=3)
+            if row["significant"]:
+                ax.text(hi, pos, "  *", va="center", ha="left", fontsize=12, fontweight="bold")
             yticks.append(pos)
-            ylabels.append(f"{tier_names[t]} - {metric_name} (n={res['n']})")
-            if res["p"] < BOOT_ALPHA:
-                ax.text(hi, pos, "  *", va="center", ha="left", fontsize=13, fontweight="bold")
+            ylabels.append(TERM_LABELS[term])
+            x_ext += [lo, hi]
+        ax.text(0.01, base + n_t - 0.15, metric, transform=trans, ha="left", va="center",
+                fontsize=10.5, fontweight="bold", color=METRIC_COLORS.get(metric, "black"))
 
-    handles = [Patch(facecolor=METRIC_COLORS.get(m, fallback[i]), edgecolor="#555555", label=m)
-               for i, m in enumerate(metric_names)]
-    _finish_tier_axes(ax, x_extent, xlim, yticks, ylabels,
-                      f"Diversity-stability slope by {mod_name} tier, all metrics combined "
-                      f"(* = p < {BOOT_ALPHA:g}, two-sided bootstrap)", handles)
-    fig.tight_layout()
-    fig.savefig(savepath, dpi=150, bbox_inches="tight")
-    return fig
-
-
-# ---------------------------------------------------------------
-# Shared axis limits (in plotted, scaled units)
-# ---------------------------------------------------------------
-
-def _panel_extent(r, mod_name, k=1.0):
-    v = r["prep"][f"V_{mod_name}"].values
-    lo_v, hi_v = np.percentile(v, [1, 99])
-    grid = np.linspace(lo_v, hi_v, N_GRID)
-    _, lo, hi = conditional_effect(r["res"], mod_name, grid)
-    ys = [k * lo.min(), k * hi.max()]
-    for _, _, s_lo, s_hi, _ in binned_slopes(r["prep"], mod_name):
-        ys += [k * s_lo, k * s_hi]
-    return lo_v, hi_v, min(ys + [0.0]), max(ys + [0.0])
-
-
-def compute_shared_limits(marginal_results, mod_names, pad_frac=AXIS_PAD_FRAC):
-    x_lo, x_hi, y_lo, y_hi = [], [], [], []
-    for metric_name, mods in marginal_results.items():
-        for mod_name in mod_names:
-            k = scale_factor(marginal_results, mod_name, metric_name)
-            a, b, c, d = _panel_extent(mods[mod_name], mod_name, k)
-            x_lo.append(a); x_hi.append(b); y_lo.append(c); y_hi.append(d)
-    x0, x1, y0, y1 = min(x_lo), max(x_hi), min(y_lo), max(y_hi)
-    xpad, ypad = (x1 - x0) * pad_frac, (y1 - y0) * pad_frac
-    return (x0 - xpad, x1 + xpad), (y0 - ypad, y1 + ypad)
-
-
-# ---------------------------------------------------------------
-# Summary
-# ---------------------------------------------------------------
-
-def _coef_row(res, name, alpha=CI_ALPHA):
-    ci = res.conf_int(alpha=alpha).loc[name]
-    return res.params[name], ci.iloc[0], ci.iloc[1], res.pvalues[name]
-
-
-def build_summary(marginal_results, fdr_alpha=FDR_ALPHA):
-    rows = []
-    for metric_name, mods in marginal_results.items():
-        for mod_name, r in mods.items():
-            res = r["res"]
-            t0, t0_lo, t0_hi, t0_p = _coef_row(res, "D")
-            t1, t1_lo, t1_hi, t1_p = _coef_row(res, f"DxV_{mod_name}")
-            rows.append({
-                "model": "marginal", "diversity_metric": metric_name, "moderator": mod_name,
-                "n": r["n"], "theta_total": r["theta_total"],
-                "theta_0": t0, "theta_0_ci_lower": t0_lo, "theta_0_ci_upper": t0_hi, "theta_0_p": t0_p,
-                "theta_1": t1, "theta_1_ci_lower": t1_lo, "theta_1_ci_upper": t1_hi, "theta_1_p": t1_p,
-                "moderator_mean_raw": r["mod_info"]["mean"], "moderator_sd_raw": r["mod_info"]["sd"],
-                "treatment_sd_raw": r["d_sd"],
-            })
-
-    summary = pd.DataFrame(rows)
-    reject, p_adj, _, _ = multipletests(summary["theta_1_p"].values, alpha=fdr_alpha, method="fdr_bh")
-    summary["theta_1_p_fdr"] = p_adj
-    summary["theta_1_significant_fdr"] = reject
-
-    mods = summary["moderator"].unique()
-    k = summary.apply(lambda r: scale_factor(marginal_results, r["moderator"],
-                                             r["diversity_metric"]), axis=1)
-    summary["scale_factor"] = k
-    summary["scale_definition"] = NET_EFFECT_SCALE
-    summary["total_diversity_effect"] = summary["moderator"].map(
-        {m: total_diversity_effect(marginal_results, m) for m in mods})
-    for c in ["theta_total", "theta_0", "theta_0_ci_lower", "theta_0_ci_upper",
-              "theta_1", "theta_1_ci_lower", "theta_1_ci_upper"]:
-        summary[f"{c}_rel_total"] = summary[c] * k
-    return summary
-
-
-# ---------------------------------------------------------------
-# Plots
-# ---------------------------------------------------------------
-
-def _create_metric_grid(n_metrics, n_cols=GRID_N_COLS, panel_width=5.5, panel_height=4.0):
-    n_rows = int(np.ceil(n_metrics / n_cols))
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(panel_width * n_cols, panel_height * n_rows),
-                             squeeze=False)
-    axes_flat = list(axes.flatten())
-    for ax in axes_flat[n_metrics:]:
-        ax.set_visible(False)
-    return fig, axes_flat[:n_metrics]
-
-
-def plot_conditional_effects(marginal_results, mod_name, summary, savepath, xlim, ylim):
-    """theta(V) with CI band, tertile-slope check and rug, all in scaled units, shared axes."""
-    rng = np.random.default_rng(RANDOM_SEED)
-    metric_names = list(marginal_results.keys())
-    color = MODERATOR_COLORS.get(mod_name, "navy")
-    fig, axes = _create_metric_grid(len(metric_names))
-
-    for ax, metric_name in zip(axes, metric_names):
-        r = marginal_results[metric_name][mod_name]
-        k = scale_factor(marginal_results, mod_name, metric_name)
-        v = r["prep"][f"V_{mod_name}"].values
-        lo_v, hi_v = np.percentile(v, [1, 99])
-        grid = np.linspace(lo_v, hi_v, N_GRID)
-        eff, lo, hi = (k * a for a in conditional_effect(r["res"], mod_name, grid))
-
-        ax.fill_between(grid, lo, hi, color=color, alpha=0.2, linewidth=0)
-        ax.plot(grid, eff, color=color, linewidth=2, label="Linear moderation model")
-        ax.axhline(0, color="gray", linestyle="--", linewidth=0.8, zorder=0)
-
-        for med_v, slope, s_lo, s_hi, _ in binned_slopes(r["prep"], mod_name):
-            slope, s_lo, s_hi = k * slope, k * s_lo, k * s_hi
-            ax.errorbar(med_v, slope, yerr=[[slope - s_lo], [s_hi - slope]], fmt="o",
-                        color="black", markersize=4, capsize=3, linewidth=1, zorder=4)
-        ax.plot([], [], "o", color="black", markersize=4, label="Tertile slopes (check)")
-
-        idx = rng.choice(len(v), size=min(RUG_MAX_POINTS, len(v)), replace=False)
-        trans = mtransforms.blended_transform_factory(ax.transData, ax.transAxes)
-        ax.plot(v[idx], np.full(len(idx), 0.01), "|", color=color, alpha=0.15,
-                markersize=6, transform=trans)
-
-        row = summary[(summary.diversity_metric == metric_name) & (summary.moderator == mod_name)].iloc[0]
-        star = " *" if row["theta_1_significant_fdr"] else ""
-        if _scaled():
-            t1 = (f" = {row['theta_1_rel_total']:.1f}% "
-                  f"[{row['theta_1_ci_lower_rel_total']:.1f}, {row['theta_1_ci_upper_rel_total']:.1f}]")
-        else:
-            t1 = f" = {row['theta_1']:.3g} [{row['theta_1_ci_lower']:.3g}, {row['theta_1_ci_upper']:.3g}]"
-        ax.set_title(f"{metric_name}\n" + r"$\theta_1$" + t1 + star, fontsize=10)
-        ax.set_xlim(*xlim)
-        ax.set_ylim(*ylim)
-        ax.set_xlabel(_moderator_label(mod_name), fontsize=9)
-        ax.set_ylabel(_effect_label(), fontsize=9)
-
-    axes[0].legend(fontsize=8, loc="best")
-    fig.suptitle(f"Conditional effect of diversity on stability across {mod_name}  "
-                 f"(* = moderation significant after FDR correction)", fontsize=12, y=1.01)
-    fig.tight_layout()
-    fig.savefig(savepath, dpi=150, bbox_inches="tight")
-    return fig
-
-
-def plot_theta1_forest(summary, savepath):
-    """Forest plot of theta_1 for every metric x moderator, on the reporting scale."""
-    sfx = "_rel_total" if _scaled() else ""
-    metrics = list(dict.fromkeys(summary["diversity_metric"]))
-    mods = list(dict.fromkeys(summary["moderator"]))
-    offsets = np.linspace(-0.15, 0.15, len(mods)) if len(mods) > 1 else [0.0]
-
-    fig, ax = plt.subplots(figsize=(7, 0.8 * len(metrics) + 1.5))
-    for m_i, mod_name in enumerate(mods):
-        rows = summary[summary.moderator == mod_name].set_index("diversity_metric").loc[metrics]
-        y = np.arange(len(metrics))[::-1] + offsets[m_i]
-        est = rows[f"theta_1{sfx}"].values
-        ci_lo, ci_hi = rows[f"theta_1_ci_lower{sfx}"].values, rows[f"theta_1_ci_upper{sfx}"].values
-        ax.errorbar(est, y, xerr=[est - ci_lo, ci_hi - est], fmt="o",
-                    color=MODERATOR_COLORS.get(mod_name, "navy"), capsize=3, label=mod_name)
-        for yi, xi, sig in zip(y, ci_hi, rows["theta_1_significant_fdr"].values):
-            if sig:
-                ax.text(xi, yi, "  *", va="center", fontsize=12, fontweight="bold")
-
-    ax.axvline(0, color="gray", linestyle="--", linewidth=0.8)
-    ax.set_yticks(np.arange(len(metrics))[::-1])
-    ax.set_yticklabels(metrics)
-    per = " per 1 SD of moderator" if STANDARDISE_MODERATOR else ""
+    ax.axvline(0, color="gray", ls=":", lw=1)
     if _scaled():
-        ax.set_xlabel(r"Moderation effect $\theta_1$" + f" ({_scale_name()}{per})")
+        ax.axvline(100, color="#bbbbbb", ls="--", lw=0.8)
+    pad = (max(x_ext) - min(x_ext)) * 0.1
+    ax.set_xlim(min(x_ext) - pad, max(x_ext) + pad)
+    ax.set_ylim(-0.7, len(metrics) * block - 0.4)
+    ax.set_yticks(yticks)
+    ax.set_yticklabels(ylabels, fontsize=8.5)
+    per = " per 1 SD" if STANDARDISE_MODERATOR else ""
+    if _scaled():
+        ax.set_xlabel("Effect on stability, % of the metric's unmoderated effect\n"
+                      f"(interactions: change{per} of the moderator; dashed line = 100%)")
     else:
-        ax.set_xlabel(r"Moderation effect $\theta_1$" + (f" ({per.strip()})" if per else ""))
-    ax.set_title("Moderation of the diversity-stability effect\n* = significant after FDR correction",
-                 fontsize=11)
-    ax.legend(fontsize=9)
+        ax.set_xlabel("Effect on stability residual per 1 SD of diversity\n"
+                      f"(interactions: change{per} of the moderator)")
+    for sp in ("top", "right"):
+        ax.spines[sp].set_visible(False)
+    ci_pct = round((1 - CI_ALPHA) * 100)
+    ax.set_title(f"Diversity effects and their moderation by rarity and % conifer\n"
+                 f"(estimate \u00b1 {ci_pct}% CI, HC3)", fontsize=11)
+    fig.text(0.01, -0.01, f"* main effect: p < {CI_ALPHA:g}; interactions: significant after "
+             f"FDR (BH, q = {FDR_ALPHA:g}).", fontsize=7.5, color="#555555")
     fig.tight_layout()
-    fig.savefig(savepath, dpi=150, bbox_inches="tight")
+    fig.savefig(savepath, dpi=300, bbox_inches="tight")
+    fig.savefig(os.path.splitext(savepath)[0] + ".pdf", bbox_inches="tight")
+    print(f"[figure] saved {savepath}")
     return fig
 
 
-# ---------------------------------------------------------------
+# ===============================================================
+# Figure 2: slopes in forest type x rarity-tier cells
+# ===============================================================
+
+def _in_interval(x, lo, hi, closed):
+    left = x >= lo if closed in ("left", "both") else x > lo
+    right = x <= hi if closed in ("right", "both") else x < hi
+    return left & right
+
+
+def _pct_tier_ids(values, tiers):
+    """Tier id per value from rank-based percentile ranges; -1 = in no tier."""
+    v = pd.Series(np.asarray(values, dtype=float))
+    pr = 100 * (v.rank(method="first") - 0.5) / len(v)
+    ids = np.full(len(v), -1)
+    for k, (_, lo, hi) in enumerate(tiers):
+        upper = (pr <= hi) if hi == 100 else (pr < hi)
+        ids[((pr >= lo) & upper).to_numpy()] = k
+    return ids
+
+
+def forest_type_ids(conifer_raw):
+    conifer_raw = np.asarray(conifer_raw, dtype=float)
+    ids = np.full(len(conifer_raw), -1)
+    for k, (_, lo, hi, closed) in enumerate(FOREST_TYPES):
+        ids[_in_interval(conifer_raw, lo, hi, closed) & (ids == -1)] = k
+    return ids
+
+
+def rarity_tier_ids(rarity_raw, f_ids):
+    rarity_raw = np.asarray(rarity_raw, dtype=float)
+    if not RARITY_TIERS_WITHIN_FOREST_TYPE:
+        return _pct_tier_ids(rarity_raw, RARITY_TIERS)
+    ids = np.full(len(rarity_raw), -1)
+    for f in range(len(FOREST_TYPES)):
+        m = f_ids == f
+        if m.any():
+            ids[m] = _pct_tier_ids(rarity_raw[m], RARITY_TIERS)
+    return ids
+
+
+def _difference_test(prep, metric, Y, D, f_mask, r_ids):
+    """High-vs-low rarity slope difference within one forest type: D x High in
+    Y ~ D + High + D x High (+ controls). Returns (difference, p)."""
+    lo_id, hi_id = 0, len(RARITY_TIERS) - 1
+    if min((f_mask & (r_ids == lo_id)).sum(), (f_mask & (r_ids == hi_id)).sum()) < MIN_CELL_N:
+        return np.nan, np.nan
+    m = f_mask & ((r_ids == lo_id) | (r_ids == hi_id))
+    H = (r_ids[m] == hi_id).astype(float)
+    cols = {"D": D[m], "High": H, "DxHigh": D[m] * H}
+    cols.update(_control_cols(prep, metric, m))
+    res = _fit(Y[m], _design(cols))
+    return float(res.params["DxHigh"]), float(res.pvalues["DxHigh"])
+
+
+def cell_slopes(prep, k):
+    Y = prep["Y"].to_numpy(float)
+    f_ids = forest_type_ids(prep["raw"]["Conifer"])
+    r_ids = rarity_tier_ids(prep["raw"]["Rarity"], f_ids)
+    rows = []
+    for metric in prep["D"].columns:
+        D = prep["D"][metric].to_numpy(float)
+        kk = k[metric]
+        for f, (f_lab, *_) in enumerate(FOREST_TYPES):
+            f_mask = f_ids == f
+            diff, diff_p = _difference_test(prep, metric, Y, D, f_mask, r_ids)
+            for r, (r_lab, _, _) in enumerate(RARITY_TIERS):
+                m = f_mask & (r_ids == r)
+                n = int(m.sum())
+                row = {"diversity_metric": metric, "forest_type": f_lab, "rarity_tier": r_lab,
+                       "n": n, "n_forest_type": int(f_mask.sum()),
+                       "rarity_raw_min": np.nan, "rarity_raw_max": np.nan,
+                       "slope": np.nan, "slope_ci_lower": np.nan, "slope_ci_upper": np.nan,
+                       "slope_p": np.nan, "scale_factor": kk,
+                       "diff_high_minus_low": diff, "diff_high_minus_low_scaled": kk * diff,
+                       "diff_p": diff_p}
+                if n:
+                    rr = prep["raw"]["Rarity"].to_numpy(float)[m]
+                    row["rarity_raw_min"], row["rarity_raw_max"] = rr.min(), rr.max()
+                if n >= MIN_CELL_N:
+                    cols = {"D": D[m]}
+                    cols.update(_control_cols(prep, metric, m))
+                    est, lo, hi, p = _coef(_fit(Y[m], _design(cols)), "D")
+                    row.update(slope=est, slope_ci_lower=lo, slope_ci_upper=hi, slope_p=p)
+                row["slope_scaled"] = kk * row["slope"]
+                row["slope_ci_lower_scaled"] = kk * row["slope_ci_lower"]
+                row["slope_ci_upper_scaled"] = kk * row["slope_ci_upper"]
+                rows.append(row)
+    tab = pd.DataFrame(rows)
+
+    # FDR across the high-vs-low tests (one per metric x forest type)
+    key = tab.drop_duplicates(["diversity_metric", "forest_type"])[
+        ["diversity_metric", "forest_type", "diff_p"]].copy()
+    key["diff_p_fdr"] = np.nan
+    ok = key["diff_p"].notna()
+    if ok.any():
+        key.loc[ok, "diff_p_fdr"] = multipletests(key.loc[ok, "diff_p"].values,
+                                                  alpha=FDR_ALPHA, method="fdr_bh")[1]
+    tab = tab.merge(key[["diversity_metric", "forest_type", "diff_p_fdr"]],
+                    on=["diversity_metric", "forest_type"], how="left")
+
+    print("[cells] plots per forest type x rarity tier (first metric):")
+    first = tab[tab.diversity_metric == tab.diversity_metric.iloc[0]]
+    print(first[["forest_type", "rarity_tier", "n", "n_forest_type"]].to_string(index=False))
+    return tab
+
+
+def plot_cell_slopes(tab, savepath, panel_width=4.6, panel_height=4.4):
+    metrics = list(dict.fromkeys(tab["diversity_metric"]))
+    f_labels = [f[0] for f in FOREST_TYPES]
+    r_labels = [r[0] for r in RARITY_TIERS]
+    n_r = len(r_labels)
+    offs = np.linspace(-0.17, 0.17, n_r) if n_r > 1 else [0.0]
+
+    fig, axes = plt.subplots(1, len(metrics), figsize=(panel_width * len(metrics), panel_height),
+                             squeeze=False)
+    axes = axes[0]
+
+    for ax, metric in zip(axes, metrics):
+        colors = _group_colors(METRIC_COLORS.get(metric, "#555555"), n_r)
+        sub = tab[tab.diversity_metric == metric]
+        # own y-range per metric (one unstable metric must not squash the others)
+        ys = np.r_[sub["slope_ci_lower_scaled"].dropna(), sub["slope_ci_upper_scaled"].dropna(), 0.0]
+        span = (ys.max() - ys.min()) or 1.0
+        ylim = (ys.min() - 0.12 * span, ys.max() + 0.18 * span)   # headroom for the p labels
+        trans = mtransforms.blended_transform_factory(ax.transData, ax.transAxes)
+        for f, f_lab in enumerate(f_labels):
+            for r, r_lab in enumerate(r_labels):
+                row = sub[(sub.forest_type == f_lab) & (sub.rarity_tier == r_lab)].iloc[0]
+                x = f + offs[r]
+                if not np.isfinite(row["slope_scaled"]):
+                    ax.text(x, 0, f"n={row['n']}\n(too few)", ha="center", va="center",
+                            fontsize=6.5, color="#888888")
+                    continue
+                est = row["slope_scaled"]
+                lo, hi = row["slope_ci_lower_scaled"], row["slope_ci_upper_scaled"]
+                ax.errorbar(x, est, yerr=[[est - lo], [hi - est]], fmt="o", color=colors[r],
+                            ecolor=colors[r], markersize=7, markeredgecolor="#333333",
+                            markeredgewidth=0.7, elinewidth=2, capsize=4, zorder=3)
+                ax.annotate(f"n={row['n']}", (x, lo), xytext=(0, -3), textcoords="offset points",
+                            ha="center", va="top", fontsize=6.5, color="#555555")
+            p = sub[sub.forest_type == f_lab]["diff_p_fdr"].iloc[0]
+            if np.isfinite(p):
+                ax.text(f, 0.98, _p_text(p, "\u0394 "), transform=trans, ha="center", va="top",
+                        fontsize=7.5, fontweight="bold" if p < FDR_ALPHA else "normal")
+
+        ax.axhline(0, color="gray", ls=":", lw=1, zorder=0)
+        if _scaled():
+            ax.axhline(100, color="#bbbbbb", ls="--", lw=0.8, zorder=0)
+        ax.set_xticks(range(len(f_labels)))
+        ax.set_xticklabels([lab.replace(" (", "\n(") for lab in f_labels], fontsize=8)
+        ax.set_xlim(-0.6, len(f_labels) - 0.4)
+        ax.set_ylim(*ylim)
+        ax.set_title(metric, fontsize=11, fontweight="bold", color=METRIC_COLORS.get(metric, "black"))
+        for sp in ("top", "right"):
+            ax.spines[sp].set_visible(False)
+
+    if _scaled():
+        axes[0].set_ylabel("Slope of stability on diversity\n(% of the metric's unmoderated "
+                           "effect;\ndashed line = 100%)", fontsize=9)
+    else:
+        axes[0].set_ylabel("Slope of stability residual\nper 1 SD of diversity", fontsize=9)
+
+    greys = _group_colors("#555555", n_r)
+    within = " (within each forest type)" if RARITY_TIERS_WITHIN_FOREST_TYPE else " (all plots)"
+    handles = [Line2D([], [], color=g, marker="o", lw=2, markeredgecolor="#333333",
+                      markersize=6, label=lab + within) for g, lab in zip(greys, r_labels)]
+    fig.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, 0.0),
+               ncol=n_r, fontsize=8.5, frameon=False)
+    ci_pct = round((1 - CI_ALPHA) * 100)
+    fig.suptitle(f"Diversity-stability slope by forest type and rarity (OLS \u00b1 {ci_pct}% CI, "
+                 f"HC3; \u0394 = high vs low rarity, FDR)", fontsize=11.5)
+    fig.tight_layout(rect=[0, 0, 1, 0.95])
+    fig.savefig(savepath, dpi=300, bbox_inches="tight")
+    fig.savefig(os.path.splitext(savepath)[0] + ".pdf", bbox_inches="tight")
+    print(f"[figure] saved {savepath}")
+    return fig
+
+
+# ===============================================================
 # Entry point
-# ---------------------------------------------------------------
+# ===============================================================
 
 def run_moderation_analysis(df, outdir=OUTDIR):
     os.makedirs(outdir, exist_ok=True)
-    marginal = fit_marginal_models(df)
+    prep = prepare(df)
+    k = scale_factors(prep)
 
-    summary = build_summary(marginal)
-    summary_path = _out(OUT_SUMMARY, outdir)
-    summary.to_csv(summary_path, index=False)
-    print(f"[run_moderation_analysis] Summary saved to {summary_path}")
-    cols = ["diversity_metric", "moderator", "n", "total_diversity_effect",
-            "theta_total_rel_total", "theta_0_rel_total", "theta_1_rel_total",
-            "theta_1_ci_lower_rel_total", "theta_1_ci_upper_rel_total", "theta_1_p_fdr"]
-    print(summary[cols].to_string(index=False))
+    fits = {m: fit_interaction_model(prep, m) for m in prep["D"].columns}
+    coef = build_coef_table(prep, fits, k)
+    coef.to_csv(_out(OUT_COEF_CSV, outdir), index=False)
+    plot_coefficients(coef, _out(OUT_COEF_FIG, outdir))
 
-    # Conditional-effect plots share axes across all moderators
-    xlim, ylim = compute_shared_limits(marginal, list(MODERATORS))
-    for mod_name in MODERATORS:
-        plot_conditional_effects(marginal, mod_name, summary,
-                                 savepath=_out(OUT_CONDITIONAL_FIG, outdir, mod_name),
-                                 xlim=xlim, ylim=ylim)
-    plot_theta1_forest(summary, _out(OUT_THETA1_FOREST_FIG, outdir))
-
-    # ---- Tier boxplots: slope of each metric within moderator tiers, adjusted for the others ----
-    joint = _prepare_joint(df)
-    k_joint = joint_scale_factors(joint)
-    print(f"[run_moderation_analysis] Tier slopes are adjusted for the other metrics; "
-          f"scale = {NET_EFFECT_SCALE}")
-
-    for mod_name in MODERATORS:
-        print(f"[run_moderation_analysis] Bootstrapping tier slopes, tiers cut on {mod_name} "
-              f"({N_BOOT} resamples x {len(DIVERSITY_METRICS)} metrics x {N_BINS_CHECK} tiers)...")
-        boot = run_bootstrap_tiers(joint, mod_name)
-        bootstrap_summary_table(boot, mod_name, k_joint).to_csv(
-            _out(OUT_TIER_BOOT_CSV, outdir, mod_name), index=False)
-        plot_tier_boxplots(boot, mod_name, k=k_joint,
-                           savepath=_out(OUT_TIER_BOX_FIG, outdir, mod_name))
-
-    return marginal, summary
+    cells = cell_slopes(prep, k)
+    cells.to_csv(_out(OUT_CELL_CSV, outdir), index=False)
+    plot_cell_slopes(cells, _out(OUT_CELL_FIG, outdir))
+    return coef, cells
 
 
 if __name__ == "__main__":
     residuals_df = pd.read_csv(RESIDUALS_PATH)
     residuals_df = residuals_df.drop(columns=["residual_simpsons"], errors="ignore")
 
-    PID_df= pd.read_csv('data/lookup/PID_location_v3.csv')
-    residuals_df=residuals_df.merge(PID_df[['PID', 'STDAGE', 'percent_conifer']], on='PID', how='left')
+    PID_df = pd.read_csv(PID_LOOKUP_PATH)
+    residuals_df = residuals_df.merge(PID_df[["PID", "STDAGE", "percent_conifer"]], on="PID", how="left")
 
-    # residuals_df=residuals_df[residuals_df.percent_conifer < 10]
-
-    marginal, summary = run_moderation_analysis(residuals_df)
+    coef, cells = run_moderation_analysis(residuals_df)
     plt.show()
